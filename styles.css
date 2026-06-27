@@ -212,3 +212,8 @@ body[data-view="guide"] .guide-panel { display:block; }
 
 @media(max-width:980px){.guide-steps{grid-template-columns:1fr 1fr}.routine-flow{display:grid;grid-template-columns:1fr 1fr}.routine-flow>i{display:none}.guide-two-column{grid-template-columns:1fr}.guide-footer-grid{grid-template-columns:1fr}}
 @media(max-width:720px){.guide-hero{grid-template-columns:1fr;padding:22px}.guide-hero h2{font-size:19px}.guide-principle{min-height:110px}.guide-section{padding:22px}.guide-steps{grid-template-columns:1fr}.routine-flow{grid-template-columns:1fr}.guide-two-column{gap:22px}.screen-guide{grid-template-columns:1fr}.rule-matrix{overflow-x:auto}.rule-matrix>div{min-width:600px}.guide-footer-grid{padding:22px}.guide-actions{flex-direction:column}.guide-actions button{width:100%}}
+@media(max-width:720px){
+  .sidebar .nav-item { position:relative;overflow:hidden;font-size:10px;color:transparent; }
+  .sidebar .nav-item>span { position:absolute;left:50%;transform:translateX(-50%);color:#799086; }
+  .sidebar .nav-item.active>span,.sidebar .nav-item:hover>span { color:var(--mint); }
+}
