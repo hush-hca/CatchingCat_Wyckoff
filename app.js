@@ -125,6 +125,7 @@ async function refreshLiveData() {
       const asset=assets.find(a=>a.symbol===result.value.symbol);
       if(asset) asset.rvol=Math.max(.1,Math.min(result.value.rvol,9.9));
     });
+    selected=assets.find(asset=>asset.symbol===selected.symbol) || assets[0];
     const btc=rows.find(r=>r.symbol==="BTCUSDT");
     if(btc) {
       const change=Number(btc.priceChangePercent);
