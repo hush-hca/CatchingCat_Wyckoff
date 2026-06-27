@@ -11,13 +11,15 @@ const VIEW_COPY = {
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
-  journal: ["Decision Journal", "Write the rule before the market gives you a story."]
+  journal: ["Decision Journal", "Write the rule before the market gives you a story."],
+  guide: ["How to use", "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다."]
 };
 
 let assets = structuredClone(FALLBACK);
 let selected = assets[0];
 let threshold = Number(localStorage.getItem("cc-threshold") || 2);
-let currentView = VIEW_COPY[localStorage.getItem("cc-view")] ? localStorage.getItem("cc-view") : "dashboard";
+const requestedView = location.pathname === "/how-to-use" ? "guide" : location.hash.slice(1);
+let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStorage.getItem("cc-view")] ? localStorage.getItem("cc-view") : "dashboard";
 let currentFilter = "all";
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
 let journalEntries = readStorage("cc-journal", []);
@@ -188,6 +190,8 @@ function setView(view) {
   currentView = view;
   document.body.dataset.view = view;
   localStorage.setItem("cc-view", view);
+  const viewUrl = view === "guide" ? "/how-to-use" : view === "dashboard" ? "/" : `/#${view}`;
+  history.replaceState({ view }, "", viewUrl);
   qs("#viewTitle").textContent = VIEW_COPY[view][0];
   qs("#viewSubtitle").textContent = VIEW_COPY[view][1];
   qsa(".nav-item[data-view]").forEach(button => {
@@ -364,11 +368,16 @@ qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test 
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
 qs("#scanAllBtn").onclick = () => setView("scanner");
 qs("#browseScannerBtn").onclick = () => setView("scanner");
+qsa("[data-guide-view]").forEach(button => {
+  button.onclick = () => setView(button.dataset.guideView);
+});
+qs("#guideChecklistBtn").onclick = () => qs("#clearanceBtn").click();
+qs("#guideChecklistFlow").onclick = () => qs("#clearanceBtn").click();
 
 document.addEventListener("keydown", event => {
   const tag = event.target.tagName;
   if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || qs("dialog[open]")) return;
-  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "j": "journal" };
+  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "j": "journal", "h": "guide" };
   if (shortcuts[event.key.toLowerCase()]) setView(shortcuts[event.key.toLowerCase()]);
   if (event.key.toLowerCase() === "c") qs("#clearanceBtn").click();
 });

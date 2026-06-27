@@ -3,5 +3,11 @@
   "framework": null,
   "buildCommand": null,
   "outputDirectory": ".",
-  "cleanUrls": false
+  "cleanUrls": false,
+  "rewrites": [
+    {
+      "source": "/how-to-use",
+      "destination": "/index.html"
+    }
+  ]
 }

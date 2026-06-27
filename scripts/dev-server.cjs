@@ -9,9 +9,11 @@ const mime = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
 };
+const port = Number(process.env.PORT || 4173);
 
 http.createServer((req, res) => {
-  const urlPath = req.url === "/" ? "/index.html" : req.url.split("?")[0];
+  const requestPath = decodeURIComponent(new URL(req.url, "http://localhost").pathname);
+  const urlPath = path.extname(requestPath) ? requestPath : "/index.html";
   const file = path.resolve(root, `.${urlPath}`);
 
   if (!file.startsWith(root + path.sep)) {
@@ -31,6 +33,6 @@ http.createServer((req, res) => {
     });
     res.end(data);
   });
-}).listen(4173, "127.0.0.1", () => {
-  console.log("Catching Cat: http://127.0.0.1:4173");
+}).listen(port, "127.0.0.1", () => {
+  console.log(`Catching Cat: http://127.0.0.1:${port}`);
 });
