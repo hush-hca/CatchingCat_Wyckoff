@@ -23,15 +23,16 @@
       <nav>
         <p>Workspace</p>
         <button class="nav-item active" data-view="dashboard"><span>⌁</span> Dashboard</button>
-        <button class="nav-item" data-view="volume"><span>↗</span> Volume Fire <em>12</em></button>
+        <button class="nav-item" data-view="volume"><span>↗</span> Volume Fire <em id="navIgnitionCount">12</em></button>
         <button class="nav-item" data-view="scanner"><span>◎</span> Wyckoff Scanner</button>
-        <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist</button>
+        <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist <em id="watchCount">3</em></button>
         <p>Discipline</p>
         <button class="nav-item" id="checklistNav"><span>✓</span> Pre-trade check</button>
         <button class="nav-item" data-view="journal"><span>▤</span> Decision journal</button>
       </nav>
 
       <div class="sidebar-bottom">
+        <div class="shortcut-hint"><span>1—4</span> switch view · <span>C</span> clearance</div>
         <button class="nav-item" id="settingsBtn"><span>⚙</span> Settings</button>
         <div class="operator">
           <span class="avatar">CC</span>
@@ -44,8 +45,8 @@
     <main>
       <header>
         <div>
-          <h1>Good evening, Operator.</h1>
-          <p>Read the structure. Follow the volume. Protect the downside.</p>
+          <h1 id="viewTitle">Good evening, Operator.</h1>
+          <p id="viewSubtitle">Read the structure. Follow the volume. Protect the downside.</p>
         </div>
         <div class="header-actions">
           <div class="market-status">
@@ -85,7 +86,7 @@
       <section class="dashboard-grid">
         <article class="panel opportunities">
           <div class="panel-head">
-            <div><span class="eyebrow">INSTITUTIONAL FOOTPRINTS</span><h2>Priority opportunities</h2></div>
+            <div><span class="eyebrow" id="opportunityEyebrow">INSTITUTIONAL FOOTPRINTS</span><h2 id="opportunityTitle">Priority opportunities</h2></div>
             <div class="tabs"><button class="active">All setups</button><button>Accumulation</button><button>Breakouts</button></div>
           </div>
           <div class="table-wrap">
@@ -93,6 +94,12 @@
               <thead><tr><th>Asset</th><th>Price / 24h</th><th>Rel. volume</th><th>Wyckoff phase</th><th>Signal</th><th></th></tr></thead>
               <tbody id="opportunityRows"></tbody>
             </table>
+          </div>
+          <div class="watchlist-empty" id="watchlistEmpty">
+            <span>◇</span>
+            <strong>Your watchlist is clear.</strong>
+            <small>Return to the scanner and select the star beside an asset.</small>
+            <button id="browseScannerBtn">Browse scanner</button>
           </div>
           <button class="view-all" id="scanAllBtn">Open full scanner <span>→</span></button>
         </article>
@@ -144,6 +151,41 @@
             <div><span class="rule-icon neutral">○</span><p><strong>Cooldown running</strong><small>11 min since last alert review</small></p><b>19 min</b></div>
           </div>
           <button class="ghost-button" id="reviewRulesBtn">Review trading rules</button>
+        </article>
+
+        <article class="panel journal-panel" id="journalPanel">
+          <div class="panel-head">
+            <div><span class="eyebrow">DECISION HYGIENE</span><h2>Decision journal</h2></div>
+            <span class="journal-count" id="journalCount">0 NOTES</span>
+          </div>
+          <div class="journal-layout">
+            <form class="journal-compose" id="journalForm">
+              <div class="journal-asset">
+                <span class="coin-badge sui" id="journalCoin">S</span>
+                <div><small>CURRENT SETUP</small><strong id="journalAsset">SUI / USDT</strong></div>
+                <span class="phase-pill" id="journalPhase">PHASE C</span>
+              </div>
+              <label>Decision type
+                <select id="journalType">
+                  <option>Observation</option>
+                  <option>Entry plan</option>
+                  <option>Invalidation</option>
+                  <option>Post-trade review</option>
+                </select>
+              </label>
+              <label>Write the rule, not the story
+                <textarea id="journalNote" rows="6" maxlength="500" placeholder="Example: Wait for the 4H close above resistance with RVOL ≥ 3×. Invalidate below range support." required></textarea>
+              </label>
+              <div class="journal-actions">
+                <small><span id="journalCharacters">0</span>/500 · Saved only on this device</small>
+                <button type="submit">Save decision</button>
+              </div>
+            </form>
+            <div class="journal-history">
+              <div class="history-head"><strong>Recent decisions</strong><button id="clearJournalBtn" type="button">Clear all</button></div>
+              <div id="journalEntries"></div>
+            </div>
+          </div>
         </article>
       </section>
 
