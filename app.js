@@ -142,7 +142,7 @@ async function refreshLiveData() {
   qs("#refreshTime").textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
 }
 
-function renderAll(){renderTickers();renderRows();renderFire();renderChart();}
+function renderAll(){renderTickers();renderFire();selectAsset(selected.symbol);}
 
 function initChecklist() {
   const dialog=qs("#checklistDialog"), checks=qsa(".checklist input");
