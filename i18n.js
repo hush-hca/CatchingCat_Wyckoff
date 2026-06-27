@@ -25,7 +25,7 @@
     "Only the assets you chose to monitor—no scanning noise.": "직접 선택한 종목만 집중해서 감시합니다.",
     "Decision Journal": "의사결정 저널",
     "Write the rule before the market gives you a story.": "시장이 이야기를 만들기 전에 규칙부터 기록하세요.",
-    "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다.": "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다.",
+    "Learn to use Catching Cat quickly and consistently during trading.": "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다.",
     "Market feed": "시장 데이터",
     "Connecting…": "연결 중…",
     "Binance live": "바이낸스 실시간",
@@ -150,17 +150,25 @@
     "Open entry checklist": "진입 체크리스트 열기",
     "ONE RULE": "단 하나의 규칙",
     "No signal means no position.": "신호가 없으면 포지션도 없다.",
+    "No signal means": "신호가 없으면",
+    "no position.": "포지션도 없다.",
     "Observation is also a position.": "관찰도 하나의 포지션입니다.",
     "3-minute setup": "3분 시작 설정",
     "Set these once, then rotate through only three screens during trading.": "처음 한 번만 설정하면 장중에는 세 화면만 오가면 됩니다.",
     "Set thresholds": "기준 설정",
     "Set Volume ignition threshold in Settings. Start with 2.0×.": "설정에서 Volume ignition threshold를 설정합니다. 처음에는 2.0×를 권장합니다.",
+    ": set the Volume ignition threshold. Start with": "에서 Volume ignition threshold를 설정합니다. 처음에는",
+    "as a starting point.": "를 권장합니다.",
     "Review candidates": "후보 확인",
     "Check Phase, RVOL, support and resistance together in Wyckoff Scanner. Never enter from one number alone.": "와이코프 스캐너에서 Phase, RVOL, 지지·저항을 함께 봅니다. 숫자 하나만 보고 진입하지 않습니다.",
+    ": review Phase, RVOL, support, and resistance together. Never enter from one number alone.": "에서 Phase, RVOL, 지지·저항을 함께 봅니다. 숫자 하나만 보고 진입하지 않습니다.",
     "Pin focus assets": "관심종목 고정",
     "Select ◇ beside an asset to add it to Watchlist. Monitor only this list during trading.": "종목 왼쪽의 ◇를 눌러 Watchlist에 넣습니다. 장중에는 이 목록만 감시해 시야를 좁힙니다.",
+    "Select": "종목 왼쪽의",
+    "beside an asset to add it to Watchlist. Monitor only this list during trading.": "를 눌러 Watchlist에 넣습니다. 장중에는 이 목록만 감시해 시야를 좁힙니다.",
     "Final entry clearance": "진입 전 승인",
     "Open the exchange order window only when all four Pre-trade check conditions are green.": "Pre-trade check의 네 조건이 모두 초록색일 때만 거래소 주문창을 엽니다.",
+    ": open the exchange order window only when all four conditions are green.": "의 네 조건이 모두 초록색일 때만 거래소 주문창을 엽니다.",
     "Intraday routine": "장중 기본 루틴",
     "Repeat this sequence so you never get lost between features.": "아래 순서를 반복하면 기능 사이에서 길을 잃지 않습니다.",
     "Detect abnormal volume": "비정상 거래량 발견",
@@ -204,6 +212,13 @@
     "Keyboard shortcuts": "키보드 단축키",
     "You must remember": "반드시 기억하세요",
     "When the live feed is blocked, Demo feed appears at the top. Never use those numbers for a trading decision. Catching Cat does not send orders; final decisions and execution remain your responsibility.": "실시간 피드가 차단되면 상단에 Demo feed가 표시됩니다. 이때 보이는 숫자는 거래 판단에 사용하지 마세요. Catching Cat은 주문을 전송하지 않으며 최종 판단과 실행 책임은 사용자에게 있습니다.",
+    "When the live feed is blocked,": "실시간 피드가 차단되면 상단에",
+    "appears at the top. Never use those numbers for a trading decision. Catching Cat does not send orders; final decisions and execution remain your responsibility.": "가 표시됩니다. 이때 보이는 숫자는 거래 판단에 사용하지 마세요. Catching Cat은 주문을 전송하지 않으며 최종 판단과 실행 책임은 사용자에게 있습니다.",
+    "Scanner": "스캐너",
+    "Clearance": "진입 승인",
+    "Journal": "저널",
+    "views ·": "화면 ·",
+    "clearance ·": "진입 승인 ·",
     "Example: Wait for the 4H close above resistance with RVOL ≥ 3×. Invalidate below range support.": "예: RVOL 3배 이상으로 저항 위 4시간봉 마감을 기다립니다. 박스권 지지 아래에서는 무효화합니다.",
     "Close": "닫기",
     "View alerts": "알림 보기"
@@ -229,6 +244,12 @@
       const remove = clean.match(/^(.+) 관심종목 제거$/);
       if (add) translated = `Add ${add[1]} to watchlist`;
       if (remove) translated = `Remove ${remove[1]} from watchlist`;
+      if (/^오전\s/.test(clean)) translated = clean.replace(/^오전\s/, "AM ");
+      if (/^오후\s/.test(clean)) translated = clean.replace(/^오후\s/, "PM ");
+    }
+    if (!translated && targetLanguage === "ko") {
+      if (/^AM\s/.test(clean)) translated = clean.replace(/^AM\s/, "오전 ");
+      if (/^PM\s/.test(clean)) translated = clean.replace(/^PM\s/, "오후 ");
     }
     return translated ? value.replace(clean, translated) : value;
   }
