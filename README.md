@@ -15,7 +15,7 @@ A dependency-free market navigator for manually executed altcoin trades. It impl
 From this folder:
 
 ```powershell
-node server.js
+node scripts/dev-server.cjs
 ```
 
 Then open `http://127.0.0.1:4173`.
