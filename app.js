@@ -334,7 +334,7 @@ qsa(".tabs button").forEach(button => {
   button.onclick = () => {
     qsa(".tabs button").forEach(item => item.classList.remove("active"));
     button.classList.add("active");
-    currentFilter = button.textContent === "Accumulation" ? "accumulation" : button.textContent === "Breakouts" ? "breakouts" : "all";
+    currentFilter = button.dataset.filter;
     renderRows();
   };
 });

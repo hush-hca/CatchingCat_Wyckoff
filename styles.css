@@ -217,3 +217,13 @@ body[data-view="guide"] .guide-panel { display:block; }
   .sidebar .nav-item>span { position:absolute;left:50%;transform:translateX(-50%);color:#799086; }
   .sidebar .nav-item.active>span,.sidebar .nav-item:hover>span { color:var(--mint); }
 }
+.language-switch { display:grid;grid-template-columns:1fr 1fr;gap:3px;margin:0 5px 9px;padding:3px;border:1px solid var(--line);border-radius:8px;background:#08110e; }
+.language-switch button { height:28px;border:0;border-radius:5px;background:transparent;color:#61776c;font-size:10px;font-weight:700;cursor:pointer; }
+.language-switch button.active { background:var(--mint-soft);color:var(--mint); }
+.lang-short { display:none; }
+@media(max-width:720px){
+  .language-switch { width:46px;margin:0 auto 9px;gap:2px;padding:2px; }
+  .language-switch button { height:25px;padding:0; }
+  .lang-full { display:none; }
+  .lang-short { display:inline; }
+}

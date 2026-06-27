@@ -34,6 +34,10 @@
       </nav>
 
       <div class="sidebar-bottom">
+        <div class="language-switch" aria-label="Language" data-i18n-ignore>
+          <button type="button" data-language="ko"><span class="lang-full">한국어</span><span class="lang-short">한</span></button>
+          <button type="button" data-language="en"><span class="lang-full">English</span><span class="lang-short">EN</span></button>
+        </div>
         <div class="shortcut-hint"><span>1—4</span> views · <span>C</span> clearance · <span>H</span> help</div>
         <button class="nav-item" id="settingsBtn"><span>⚙</span> Settings</button>
         <div class="operator">
@@ -89,7 +93,7 @@
         <article class="panel opportunities">
           <div class="panel-head">
             <div><span class="eyebrow" id="opportunityEyebrow">INSTITUTIONAL FOOTPRINTS</span><h2 id="opportunityTitle">Priority opportunities</h2></div>
-            <div class="tabs"><button class="active">All setups</button><button>Accumulation</button><button>Breakouts</button></div>
+            <div class="tabs"><button class="active" data-filter="all">All setups</button><button data-filter="accumulation">Accumulation</button><button data-filter="breakouts">Breakouts</button></div>
           </div>
           <div class="table-wrap">
             <table>
@@ -325,6 +329,7 @@
       </form>
     </dialog>
 
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
