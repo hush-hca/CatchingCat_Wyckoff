@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07100d" />
+    <title>Catching Cat — Market Navigator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="noise"></div>
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Catching Cat home">
+        <span class="brand-mark">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M7 11 5 4l7 4a13 13 0 0 1 8 0l7-4-2 8a11 11 0 1 1-18-1Z"/><path d="M11 17h.1M21 17h.1M13 22c2 1 4 1 6 0" /></svg>
+        </span>
+        <span><strong>Catching Cat</strong><small>Market navigator</small></span>
+      </a>
+
+      <nav>
+        <p>Workspace</p>
+        <button class="nav-item active" data-view="dashboard"><span>⌁</span> Dashboard</button>
+        <button class="nav-item" data-view="volume"><span>↗</span> Volume Fire <em>12</em></button>
+        <button class="nav-item" data-view="scanner"><span>◎</span> Wyckoff Scanner</button>
+        <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist</button>
+        <p>Discipline</p>
+        <button class="nav-item" id="checklistNav"><span>✓</span> Pre-trade check</button>
+        <button class="nav-item" data-view="journal"><span>▤</span> Decision journal</button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button class="nav-item" id="settingsBtn"><span>⚙</span> Settings</button>
+        <div class="operator">
+          <span class="avatar">CC</span>
+          <span><strong>Manual operator</strong><small>Execution locked</small></span>
+          <i>•••</i>
+        </div>
+      </div>
+    </aside>
+
+    <main>
+      <header>
+        <div>
+          <h1>Good evening, Operator.</h1>
+          <p>Read the structure. Follow the volume. Protect the downside.</p>
+        </div>
+        <div class="header-actions">
+          <div class="market-status">
+            <span class="pulse"></span>
+            <div><small>Market feed</small><strong id="feedStatus">Connecting…</strong></div>
+          </div>
+          <button class="icon-button" id="alertBtn" aria-label="View alerts">♢<b>3</b></button>
+          <button class="clearance" id="clearanceBtn"><span>✓</span> Run pre-trade check</button>
+        </div>
+      </header>
+
+      <section class="ticker-strip" id="tickerStrip"></section>
+
+      <section class="summary-grid">
+        <article class="summary-card">
+          <div class="summary-icon mint">↗</div>
+          <div><small>QUALIFIED UNIVERSE</small><strong id="universeCount">184</strong><p><span class="up">+8</span> since yesterday</p></div>
+          <i>BINANCE SPOT + PERPS</i>
+        </article>
+        <article class="summary-card">
+          <div class="summary-icon orange">≋</div>
+          <div><small>VOLUME IGNITIONS</small><strong id="ignitionCount">12</strong><p><span class="hot">4</span> above 3× baseline</p></div>
+          <i>LAST 15 MINUTES</i>
+        </article>
+        <article class="summary-card">
+          <div class="summary-icon blue">◎</div>
+          <div><small>ACTIVE SETUPS</small><strong>5</strong><p><span class="up">2</span> nearing trigger</p></div>
+          <i>PHASE B → D</i>
+        </article>
+        <article class="summary-card">
+          <div class="summary-icon violet">◇</div>
+          <div><small>BTC ENVIRONMENT</small><strong class="smaller" id="btcRegime">Constructive</strong><p><span class="dot"></span> Volatility contained</p></div>
+          <i>RISK FILTER</i>
+        </article>
+      </section>
+
+      <section class="dashboard-grid">
+        <article class="panel opportunities">
+          <div class="panel-head">
+            <div><span class="eyebrow">INSTITUTIONAL FOOTPRINTS</span><h2>Priority opportunities</h2></div>
+            <div class="tabs"><button class="active">All setups</button><button>Accumulation</button><button>Breakouts</button></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Asset</th><th>Price / 24h</th><th>Rel. volume</th><th>Wyckoff phase</th><th>Signal</th><th></th></tr></thead>
+              <tbody id="opportunityRows"></tbody>
+            </table>
+          </div>
+          <button class="view-all" id="scanAllBtn">Open full scanner <span>→</span></button>
+        </article>
+
+        <article class="panel fire-panel">
+          <div class="panel-head">
+            <div><span class="eyebrow orange-text">LIVE 1-MINUTE FLOW</span><h2>Volume fire</h2></div>
+            <span class="live-badge"><i></i> LIVE</span>
+          </div>
+          <p class="muted">Volume multiple vs. rolling 20-minute baseline</p>
+          <div class="fire-list" id="fireList"></div>
+          <div class="legend"><span><i class="low"></i> 2× baseline</span><span><i class="mid"></i> 3×</span><span><i class="high"></i> 5×+</span></div>
+        </article>
+
+        <article class="panel chart-panel">
+          <div class="panel-head">
+            <div class="asset-title"><span class="coin-badge sui">S</span><div><span class="eyebrow">SELECTED SETUP</span><h2><span id="chartSymbol">SUI</span> / USDT <small>PERP</small></h2></div></div>
+            <div class="chart-price"><strong id="chartPrice">$3.8421</strong><span class="up" id="chartChange">+8.42%</span></div>
+            <div class="timeframes"><button>1H</button><button class="active">4H</button><button>1D</button><button>1W</button></div>
+          </div>
+          <div class="chart-meta">
+            <span><i class="meta-dot green"></i>Accumulation range</span>
+            <span>Support <b id="supportPrice">$3.41</b></span>
+            <span>Resistance <b id="resistancePrice">$3.96</b></span>
+            <span>RVOL <b class="up" id="chartRvol">4.8×</b></span>
+          </div>
+          <div class="chart" id="wyckoffChart"></div>
+          <div class="phase-track">
+            <span class="done">A <small>Stopping action</small></span>
+            <span class="done">B <small>Building cause</small></span>
+            <span class="current">C <small>Spring / test</small></span>
+            <span>D <small>Markup</small></span>
+            <span>E <small>Trend</small></span>
+          </div>
+        </article>
+
+        <article class="panel discipline-panel">
+          <div class="panel-head">
+            <div><span class="eyebrow">EMOTION FIREWALL</span><h2>Discipline monitor</h2></div>
+            <span class="shield">♢</span>
+          </div>
+          <div class="discipline-state">
+            <div class="ring"><span>3</span><small>ACTIVE<br/>RULES</small></div>
+            <div><strong>Stay mechanical.</strong><p>No valid entry exists without clearance. Observation is a position.</p></div>
+          </div>
+          <div class="rule-list">
+            <div><span class="rule-icon warn">!</span><p><strong>Chase guard active</strong><small>SUI is 24.3% above range floor</small></p><b>Needs proof</b></div>
+            <div><span class="rule-icon safe">✓</span><p><strong>No stop violations</strong><small>All 4H closes above support</small></p><b class="safe-text">Protected</b></div>
+            <div><span class="rule-icon neutral">○</span><p><strong>Cooldown running</strong><small>11 min since last alert review</small></p><b>19 min</b></div>
+          </div>
+          <button class="ghost-button" id="reviewRulesBtn">Review trading rules</button>
+        </article>
+      </section>
+
+      <footer>
+        <span><i class="status-dot"></i> Scanner operational · Last refresh <b id="refreshTime">now</b></span>
+        <span>Catching Cat is a decision-support tool, not financial advice. Trades are never executed automatically.</span>
+      </footer>
+    </main>
+
+    <div class="toast-stack" id="toastStack"></div>
+
+    <dialog id="checklistDialog">
+      <form method="dialog" class="modal">
+        <button class="modal-close" value="cancel" aria-label="Close">×</button>
+        <span class="modal-kicker">FINAL CLEARANCE</span>
+        <h2>Brainless pre-trade check</h2>
+        <p>Every condition must be verified. No stories, no exceptions.</p>
+        <div class="check-asset">
+          <span class="coin-badge sui">S</span>
+          <div><small>CHECKING SETUP</small><strong><span id="modalAsset">SUI</span> / USDT</strong></div>
+          <span class="phase-pill">PHASE C</span>
+        </div>
+        <div class="checklist">
+          <label><input type="checkbox" checked><span class="custom-check"></span><span><strong>Qualified universe</strong><small>Listed on Binance Spot + Perpetual Futures</small></span></label>
+          <label><input type="checkbox"><span class="custom-check"></span><span><strong>Valid 4-hour structure</strong><small>Support test or confirmed breakout</small></span></label>
+          <label><input type="checkbox"><span class="custom-check"></span><span><strong>Relative volume ≥ 2×</strong><small>Current reading: <b class="up">4.8× baseline</b></small></span></label>
+          <label><input type="checkbox"><span class="custom-check"></span><span><strong>Bitcoin is supportive</strong><small>Trend stable, volatility contained</small></span></label>
+        </div>
+        <div class="clearance-result" id="clearanceResult">
+          <span>⏳</span><div><strong>Clearance withheld</strong><small>Confirm all four rules to unlock the conclusion.</small></div>
+        </div>
+        <button class="execute-button" id="executeBtn" value="default" disabled>Open order window — execute manually</button>
+        <small class="modal-foot">Catching Cat never places an order or connects to your trading account.</small>
+      </form>
+    </dialog>
+
+    <dialog id="settingsDialog">
+      <form method="dialog" class="modal small-modal">
+        <button class="modal-close" value="cancel">×</button>
+        <span class="modal-kicker">SCANNER CONTROL</span>
+        <h2>Navigator settings</h2>
+        <label class="field">Volume ignition threshold <output id="thresholdOutput">2.0×</output><input id="thresholdRange" type="range" min="2" max="5" value="2" step=".5"></label>
+        <label class="field">Permanent blacklist<textarea id="blacklistInput" rows="3" placeholder="BTC, ETH, XRP">BTC, ETH, BNB, SOL, XRP</textarea></label>
+        <label class="toggle-row"><span><strong>Audio ignition alerts</strong><small>Short tone when RVOL crosses threshold</small></span><input type="checkbox" id="audioToggle"><i></i></label>
+        <button class="execute-button" id="saveSettingsBtn" value="default">Save scanner settings</button>
+      </form>
+    </dialog>
+
+    <script src="app.js"></script>
+  </body>
+</html>
