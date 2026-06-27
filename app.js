@@ -77,7 +77,7 @@ function renderRows() {
         </div></td>
         <td><div class="price-cell"><strong>${fmt(asset.price)}</strong><span class="${asset.change >= 0 ? "up" : "down"}">${asset.change >= 0 ? "+" : ""}${asset.change.toFixed(2)}%</span></div></td>
         <td><span class="rvol">${asset.rvol.toFixed(1)}×</span><div class="rvol-bar"><i style="width:${Math.min(asset.rvol / 5 * 100, 100)}%"></i></div></td>
-        <td><span class="phase-pill phase-${asset.phase.toLowerCase()}">PHASE ${asset.phase}</span><small style="display:block;color:#697e74;margin-top:3px;font-size:6px">${asset.phaseLabel}</small></td>
+        <td><span class="phase-pill phase-${asset.phase.toLowerCase()}">PHASE ${asset.phase}</span><small style="display:block;color:#697e74;margin-top:3px;font-size:10px">${asset.phaseLabel}</small></td>
         <td><span class="signal-pill ${index === 0 ? "signal-spring" : index === 1 ? "signal-watch" : ""}">${asset.signal}</span></td>
         <td class="row-arrow">›</td>
       </tr>`;
