@@ -26,7 +26,8 @@ let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStor
 let currentFilter = "all";
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
 let journalEntries = readStorage("cc-journal", []);
-let scannerReturnPosition = 0;
+let expandedScannerSymbol = null;
+let scannerToggleToken = 0;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -114,15 +115,20 @@ function buildQualifiedUniverse(rows) {
   return [...priority, ...remaining].slice(0, QUALIFIED_UNIVERSE_SIZE);
 }
 
-function renderRows() {
+function renderRows(openInlineChart = true) {
+  const chartPanel = qs("#selectedSetupPanel");
+  const chartAnchor = qs("#chartAnchor");
+  if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) {
+    chartAnchor.after(chartPanel);
+  }
   const rows = visibleAssets();
   const empty = currentView === "watchlist" && rows.length === 0;
   qs(".table-wrap").hidden = empty;
   qs("#watchlistEmpty").style.display = empty ? "flex" : "none";
   qs("#opportunityRows").innerHTML = rows.map((asset, index) => {
     const watched = watchlist.includes(asset.symbol);
-    return `
-      <tr data-symbol="${asset.symbol}" class="${selected.symbol === asset.symbol ? "selected" : ""}">
+    const assetRow = `
+      <tr data-symbol="${asset.symbol}" class="${selected.symbol === asset.symbol ? "selected" : ""}" aria-expanded="${currentView === "scanner" && expandedScannerSymbol === asset.symbol}">
         <td><div class="asset-cell">
           <button class="watch-toggle ${watched ? "watched" : ""}" data-watch="${asset.symbol}" aria-label="${watched ? "Remove" : "Add"} ${asset.symbol} ${watched ? "from" : "to"} watchlist">${watched ? "◆" : "◇"}</button>
           <span class="coin-badge ${asset.symbol.toLowerCase()}">${asset.symbol[0]}</span>
@@ -134,13 +140,22 @@ function renderRows() {
         <td><span class="signal-pill ${index === 0 ? "signal-spring" : index === 1 ? "signal-watch" : ""}">${asset.signal}</span></td>
         <td class="row-arrow">›</td>
       </tr>`;
+    const inlineChart = currentView === "scanner" && expandedScannerSymbol === asset.symbol
+      ? `<tr class="inline-chart-row" data-chart-for="${asset.symbol}"><td colspan="6"><div class="inline-chart-shell"><div class="inline-chart-mount"></div></div></td></tr>`
+      : "";
+    return assetRow + inlineChart;
   }).join("");
 
-  qsa("#opportunityRows tr").forEach(row => {
+  const inlineMount = qs(".inline-chart-mount");
+  if (inlineMount && chartPanel) {
+    inlineMount.append(chartPanel);
+    if (openInlineChart) qs(".inline-chart-shell")?.classList.add("open");
+  }
+
+  qsa("#opportunityRows tr[data-symbol]").forEach(row => {
     row.onclick = () => {
-      if (currentView === "scanner") scannerReturnPosition = window.scrollY;
-      selectAsset(row.dataset.symbol);
-      if (currentView === "scanner") revealSelectedSetup();
+      if (currentView === "scanner") toggleScannerChart(row.dataset.symbol);
+      else selectAsset(row.dataset.symbol);
     };
   });
   qsa("[data-watch]").forEach(button => {
@@ -225,7 +240,7 @@ function renderChart() {
   </svg>`;
 }
 
-function selectAsset(symbol) {
+function selectAsset(symbol, shouldRenderRows = true) {
   selected = assets.find(asset => asset.symbol === symbol) || assets[0];
   qs("#chartSymbol").textContent = selected.symbol;
   qs("#modalAsset").textContent = selected.symbol;
@@ -238,22 +253,48 @@ function selectAsset(symbol) {
   const checklistVolume = qs("#checklistDialog .checklist label:nth-child(3) b");
   if (checklistVolume) checklistVolume.textContent = `${selected.rvol.toFixed(1)}× baseline`;
   updateJournalSetup();
-  renderRows();
+  if (shouldRenderRows) renderRows();
   renderChart();
 }
 
-function revealSelectedSetup() {
-  const panel = qs("#selectedSetupPanel");
-  panel.classList.remove("chart-revealed");
-  requestAnimationFrame(() => {
-    panel.classList.add("chart-revealed");
-    panel.scrollIntoView({ block: "start" });
-    panel.focus({ preventScroll: true });
-  });
+function restoreScrollPosition(top, left) {
+  window.scrollTo({ top, left, behavior: "auto" });
+}
+
+function toggleScannerChart(symbol) {
+  const scrollTop = window.scrollY;
+  const scrollLeft = window.scrollX;
+  const sameSymbol = expandedScannerSymbol === symbol;
+  const openShell = qs(".inline-chart-shell.open");
+  const token = ++scannerToggleToken;
+
+  const commitToggle = () => {
+    if (token !== scannerToggleToken) return;
+    expandedScannerSymbol = sameSymbol ? null : symbol;
+    if (!sameSymbol) selectAsset(symbol, false);
+    renderRows(false);
+    restoreScrollPosition(scrollTop, scrollLeft);
+    if (!sameSymbol) {
+      requestAnimationFrame(() => {
+        if (token !== scannerToggleToken) return;
+        qs(".inline-chart-shell")?.classList.add("open");
+        restoreScrollPosition(scrollTop, scrollLeft);
+      });
+    }
+  };
+
+  if (openShell) {
+    openShell.classList.remove("open");
+    restoreScrollPosition(scrollTop, scrollLeft);
+    window.setTimeout(commitToggle, 220);
+  } else {
+    commitToggle();
+  }
 }
 
 function setView(view) {
   if (!VIEW_COPY[view]) return;
+  if (view !== "scanner") expandedScannerSymbol = null;
   currentView = view;
   document.body.dataset.view = view;
   localStorage.setItem("cc-view", view);
@@ -402,6 +443,8 @@ qsa(".tabs button").forEach(button => {
     qsa(".tabs button").forEach(item => item.classList.remove("active"));
     button.classList.add("active");
     currentFilter = button.dataset.filter;
+    expandedScannerSymbol = null;
+    scannerToggleToken += 1;
     renderRows();
   };
 });
@@ -445,10 +488,6 @@ function openFullScanner() {
 
 qs("#scanAllBtn").onclick = openFullScanner;
 qs("#browseScannerBtn").onclick = openFullScanner;
-qs("#backToScannerBtn").onclick = () => {
-  window.scrollTo({ top: scannerReturnPosition });
-  qs("#opportunityTitle").focus({ preventScroll: true });
-};
 qsa("[data-guide-view]").forEach(button => {
   button.onclick = () => setView(button.dataset.guideView);
 });
