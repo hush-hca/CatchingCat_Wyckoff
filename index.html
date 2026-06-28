@@ -120,11 +120,14 @@
           <div class="legend"><span><i class="low"></i> 2× baseline</span><span><i class="mid"></i> 3×</span><span><i class="high"></i> 5×+</span></div>
         </article>
 
-        <article class="panel chart-panel">
+        <article class="panel chart-panel" id="selectedSetupPanel" tabindex="-1">
           <div class="panel-head">
             <div class="asset-title"><span class="coin-badge sui">S</span><div><span class="eyebrow">SELECTED SETUP</span><h2><span id="chartSymbol">SUI</span> / USDT <small>PERP</small></h2></div></div>
             <div class="chart-price"><strong id="chartPrice">$3.8421</strong><span class="up" id="chartChange">+8.42%</span></div>
-            <div class="timeframes"><button>1H</button><button class="active">4H</button><button>1D</button><button>1W</button></div>
+            <div class="chart-actions">
+              <button class="scanner-back" id="backToScannerBtn">← Back to scanner</button>
+              <div class="timeframes"><button>1H</button><button class="active">4H</button><button>1D</button><button>1W</button></div>
+            </div>
           </div>
           <div class="chart-meta">
             <span><i class="meta-dot green"></i>Accumulation range</span>

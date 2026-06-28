@@ -26,6 +26,7 @@ let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStor
 let currentFilter = "all";
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
 let journalEntries = readStorage("cc-journal", []);
+let scannerReturnPosition = 0;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -136,7 +137,11 @@ function renderRows() {
   }).join("");
 
   qsa("#opportunityRows tr").forEach(row => {
-    row.onclick = () => selectAsset(row.dataset.symbol);
+    row.onclick = () => {
+      if (currentView === "scanner") scannerReturnPosition = window.scrollY;
+      selectAsset(row.dataset.symbol);
+      if (currentView === "scanner") revealSelectedSetup();
+    };
   });
   qsa("[data-watch]").forEach(button => {
     button.onclick = event => {
@@ -235,6 +240,16 @@ function selectAsset(symbol) {
   updateJournalSetup();
   renderRows();
   renderChart();
+}
+
+function revealSelectedSetup() {
+  const panel = qs("#selectedSetupPanel");
+  panel.classList.remove("chart-revealed");
+  requestAnimationFrame(() => {
+    panel.classList.add("chart-revealed");
+    panel.scrollIntoView({ block: "start" });
+    panel.focus({ preventScroll: true });
+  });
 }
 
 function setView(view) {
@@ -430,6 +445,10 @@ function openFullScanner() {
 
 qs("#scanAllBtn").onclick = openFullScanner;
 qs("#browseScannerBtn").onclick = openFullScanner;
+qs("#backToScannerBtn").onclick = () => {
+  window.scrollTo({ top: scannerReturnPosition });
+  qs("#opportunityTitle").focus({ preventScroll: true });
+};
 qsa("[data-guide-view]").forEach(button => {
   button.onclick = () => setView(button.dataset.guideView);
 });
