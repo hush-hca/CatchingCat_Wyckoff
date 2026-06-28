@@ -70,6 +70,7 @@
     "Last point support": "최종 지지점",
     "Secondary test": "2차 테스트",
     "Open full scanner": "전체 스캐너 열기",
+    "View all coins": "전체 코인 보기",
     "LIVE 1-MINUTE FLOW": "실시간 1분 수급",
     "LIVE": "실시간",
     "Volume fire": "거래량 점화",

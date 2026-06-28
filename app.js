@@ -6,6 +6,9 @@ const FALLBACK = [
   { symbol: "INJ", name: "Injective", price: 28.391, change: 2.07, rvol: 2.4, phase: "B", phaseLabel: "Secondary test", signal: "Range watch", support: 25.4, resistance: 30.2 }
 ];
 
+const QUALIFIED_UNIVERSE_SIZE = 184;
+const PRIORITY_ASSET_COUNT = 5;
+
 const VIEW_COPY = {
   dashboard: ["Good evening, Operator.", "Read the structure. Follow the volume. Protect the downside."],
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
@@ -54,11 +57,60 @@ function renderTickers() {
 }
 
 function visibleAssets() {
-  let list = [...assets];
-  if (currentView === "watchlist") list = list.filter(asset => watchlist.includes(asset.symbol));
+  let list = currentView === "scanner" ? [...assets] : assets.slice(0, PRIORITY_ASSET_COUNT);
+  if (currentView === "watchlist") list = assets.filter(asset => watchlist.includes(asset.symbol));
   if (currentFilter === "accumulation") list = list.filter(asset => ["A", "B"].includes(asset.phase));
   if (currentFilter === "breakouts") list = list.filter(asset => ["C", "D"].includes(asset.phase));
   return list;
+}
+
+function buildQualifiedUniverse(rows) {
+  const liveRows = rows
+    .filter(row => row.symbol?.endsWith("USDT") && Number(row.lastPrice) > 0 && Number(row.quoteVolume) > 0)
+    .sort((a, b) => Number(b.quoteVolume) - Number(a.quoteVolume));
+  const liveBySymbol = new Map(liveRows.map(row => [row.symbol.slice(0, -4), row]));
+  const prioritySymbols = new Set(FALLBACK.map(asset => asset.symbol));
+
+  const toAsset = (row, index, template) => {
+    const symbol = row.symbol.slice(0, -4);
+    const price = Number(row.lastPrice);
+    const change = Number(row.priceChangePercent);
+    const low = Number(row.lowPrice) || price * 0.92;
+    const high = Number(row.highPrice) || price * 1.08;
+    const rangePosition = high > low ? (price - low) / (high - low) : 0.5;
+    const phase = rangePosition < 0.25 ? "A" : rangePosition < 0.5 ? "B" : rangePosition < 0.72 ? "C" : "D";
+    const phaseCopy = {
+      A: ["Selling climax", "Base forming"],
+      B: ["Building cause", "Accumulating"],
+      C: ["Spring / test", "Test forming"],
+      D: ["Sign of strength", "Breakout watch"]
+    };
+    const rankBoost = 2 * (1 - Math.min(index, QUALIFIED_UNIVERSE_SIZE - 1) / QUALIFIED_UNIVERSE_SIZE);
+    const rvol = Math.min(6.8, Math.max(1.1, 1.5 + rankBoost + Math.min(Math.abs(change) / 8, 1.5)));
+    return {
+      symbol,
+      name: template?.name || symbol,
+      price,
+      change,
+      rvol: template?.rvol || rvol,
+      phase: template?.phase || phase,
+      phaseLabel: template?.phaseLabel || phaseCopy[phase][0],
+      signal: template?.signal || phaseCopy[phase][1],
+      support: low,
+      resistance: high
+    };
+  };
+
+  const priority = FALLBACK
+    .map((template, index) => {
+      const row = liveBySymbol.get(template.symbol);
+      return row ? toAsset(row, index, template) : template;
+    });
+  const remaining = liveRows
+    .filter(row => !prioritySymbols.has(row.symbol.slice(0, -4)))
+    .map((row, index) => toAsset(row, index + priority.length));
+
+  return [...priority, ...remaining].slice(0, QUALIFIED_UNIVERSE_SIZE);
 }
 
 function renderRows() {
@@ -108,7 +160,7 @@ function toggleWatchlist(symbol) {
 }
 
 function renderFire() {
-  const fire = [...assets, { symbol: "WIF", rvol: 2.2 }, { symbol: "SEI", rvol: 2.0 }]
+  const fire = [...assets.slice(0, 10), { symbol: "WIF", rvol: 2.2 }, { symbol: "SEI", rvol: 2.0 }]
     .sort((a, b) => b.rvol - a.rvol);
   qs("#fireList").innerHTML = fire.map(asset => {
     const interactive = assets.some(item => item.symbol === asset.symbol);
@@ -236,11 +288,9 @@ async function refreshLiveData() {
     const response = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr", { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error("feed unavailable");
     const rows = await response.json();
-    assets = assets.map(asset => {
-      const live = rows.find(row => row.symbol === `${asset.symbol}USDT`);
-      return live ? { ...asset, price: Number(live.lastPrice), change: Number(live.priceChangePercent) } : asset;
-    });
-    const volumeResults = await Promise.allSettled(assets.map(async asset => {
+    assets = buildQualifiedUniverse(rows);
+    qs("#universeCount").textContent = assets.length;
+    const volumeResults = await Promise.allSettled(assets.slice(0, 10).map(async asset => {
       const result = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${asset.symbol}USDT&interval=1m&limit=21`, { signal: AbortSignal.timeout(5000) });
       if (!result.ok) throw new Error("volume unavailable");
       const candles = await result.json();
@@ -263,6 +313,7 @@ async function refreshLiveData() {
     qs(".pulse").style.background = "#48e59b";
     renderAll();
   } catch {
+    qs("#universeCount").textContent = assets.length;
     qs("#feedStatus").textContent = "Demo feed";
     qs(".pulse").style.background = "#ff8d55";
     showToast("Demo feed active", "Live endpoint unavailable; scanner remains interactive.", "○");
@@ -271,6 +322,7 @@ async function refreshLiveData() {
 }
 
 function renderAll() {
+  qs("#universeCount").textContent = assets.length;
   renderTickers();
   renderFire();
   selectAsset(selected.symbol);
