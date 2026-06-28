@@ -159,6 +159,7 @@ body[data-view="scanner"] .discipline-panel,
 body[data-view="scanner"] .journal-panel { display:none; }
 body[data-view="scanner"] .opportunities { grid-column:1/-1; }
 body[data-view="scanner"] .chart-panel { grid-column:1/-1; }
+body[data-view="scanner"] #scanAllBtn { display:none; }
 body[data-view="watchlist"] .fire-panel,
 body[data-view="watchlist"] .chart-panel,
 body[data-view="watchlist"] .discipline-panel,

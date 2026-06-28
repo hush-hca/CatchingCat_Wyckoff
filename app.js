@@ -366,8 +366,18 @@ qs("#saveSettingsBtn").onclick = () => {
 };
 qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test · ONDO breakout watch · ENA accumulation", "!");
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
-qs("#scanAllBtn").onclick = () => setView("scanner");
-qs("#browseScannerBtn").onclick = () => setView("scanner");
+function openFullScanner() {
+  setView("scanner");
+  requestAnimationFrame(() => {
+    const scanner = qs(".opportunities");
+    const heading = qs("#opportunityTitle");
+    scanner?.scrollIntoView({ behavior: "smooth", block: "start" });
+    heading?.focus({ preventScroll: true });
+  });
+}
+
+qs("#scanAllBtn").onclick = openFullScanner;
+qs("#browseScannerBtn").onclick = openFullScanner;
 qsa("[data-guide-view]").forEach(button => {
   button.onclick = () => setView(button.dataset.guideView);
 });
