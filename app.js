@@ -24,6 +24,7 @@ let threshold = Number(localStorage.getItem("cc-threshold") || 2);
 const requestedView = location.pathname === "/how-to-use" ? "guide" : location.hash.slice(1);
 let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStorage.getItem("cc-view")] ? localStorage.getItem("cc-view") : "dashboard";
 let currentFilter = "all";
+let sortRules = [];
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
 let journalEntries = readStorage("cc-journal", []);
 let expandedScannerSymbol = null;
@@ -63,7 +64,58 @@ function visibleAssets() {
   if (currentView === "watchlist") list = assets.filter(asset => watchlist.includes(asset.symbol));
   if (currentFilter === "accumulation") list = list.filter(asset => ["A", "B"].includes(asset.phase));
   if (currentFilter === "breakouts") list = list.filter(asset => ["C", "D"].includes(asset.phase));
+  if (sortRules.length) {
+    list = list
+      .map((asset, originalIndex) => ({ asset, originalIndex }))
+      .sort((left, right) => {
+        for (const rule of sortRules) {
+          const leftValue = left.asset[rule.key];
+          const rightValue = right.asset[rule.key];
+          const comparison = typeof leftValue === "number"
+            ? leftValue - rightValue
+            : String(leftValue).localeCompare(String(rightValue), undefined, { numeric: true, sensitivity: "base" });
+          if (comparison) return rule.direction === "asc" ? comparison : -comparison;
+        }
+        return left.originalIndex - right.originalIndex;
+      })
+      .map(item => item.asset);
+  }
   return list;
+}
+
+function defaultSortDirection(key) {
+  return ["price", "rvol", "change"].includes(key) ? "desc" : "asc";
+}
+
+function updateSortControls() {
+  qsa("[data-sort-key]").forEach(button => {
+    const ruleIndex = sortRules.findIndex(rule => rule.key === button.dataset.sortKey);
+    const rule = sortRules[ruleIndex];
+    const indicator = button.querySelector(".sort-indicator");
+    button.classList.toggle("sorted", Boolean(rule));
+    indicator.textContent = rule ? `${rule.direction === "asc" ? "↑" : "↓"} ${ruleIndex + 1}` : "↕";
+    const header = button.closest("th");
+    if (ruleIndex === 0) header.setAttribute("aria-sort", rule.direction === "asc" ? "ascending" : "descending");
+    else header.removeAttribute("aria-sort");
+  });
+  qs("#clearSortBtn").hidden = sortRules.length === 0;
+}
+
+function updateSort(key) {
+  const existingIndex = sortRules.findIndex(rule => rule.key === key);
+  const defaultDirection = defaultSortDirection(key);
+  if (existingIndex < 0) {
+    sortRules = [...sortRules, { key, direction: defaultDirection }];
+  } else if (sortRules[existingIndex].direction === defaultDirection) {
+    sortRules[existingIndex] = {
+      ...sortRules[existingIndex],
+      direction: defaultDirection === "asc" ? "desc" : "asc"
+    };
+  } else {
+    sortRules = sortRules.filter((_, index) => index !== existingIndex);
+  }
+  updateSortControls();
+  renderRows();
 }
 
 function buildQualifiedUniverse(rows) {
@@ -448,6 +500,14 @@ qsa(".tabs button").forEach(button => {
     renderRows();
   };
 });
+qsa("[data-sort-key]").forEach(button => {
+  button.onclick = () => updateSort(button.dataset.sortKey);
+});
+qs("#clearSortBtn").onclick = () => {
+  sortRules = [];
+  updateSortControls();
+  renderRows();
+};
 qsa(".timeframes button").forEach(button => {
   button.onclick = () => {
     qsa(".timeframes button").forEach(item => item.classList.remove("active"));
@@ -506,6 +566,7 @@ initChecklist();
 initJournal();
 updateJournalSetup();
 renderJournal();
+updateSortControls();
 setView(currentView);
 renderAll();
 refreshLiveData();

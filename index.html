@@ -95,9 +95,20 @@
             <div><span class="eyebrow" id="opportunityEyebrow">INSTITUTIONAL FOOTPRINTS</span><h2 id="opportunityTitle" tabindex="-1">Priority opportunities</h2></div>
             <div class="tabs"><button class="active" data-filter="all">All setups</button><button data-filter="accumulation">Accumulation</button><button data-filter="breakouts">Breakouts</button></div>
           </div>
+          <div class="sort-toolbar">
+            <span>Click: add · Click again: reverse · Third click: remove</span>
+            <button id="clearSortBtn" type="button" hidden>Clear sorting</button>
+          </div>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>Asset</th><th>Price / 24h</th><th>Rel. volume</th><th>Wyckoff phase</th><th>Signal</th><th></th></tr></thead>
+              <thead><tr>
+                <th><button class="sort-button" data-sort-key="symbol" type="button" title="Click: add · Click again: reverse · Third click: remove">Asset <span class="sort-indicator">↕</span></button></th>
+                <th><button class="sort-button" data-sort-key="price" type="button" title="Click: add · Click again: reverse · Third click: remove">Price / 24h <span class="sort-indicator">↕</span></button></th>
+                <th><button class="sort-button" data-sort-key="rvol" type="button" title="Click: add · Click again: reverse · Third click: remove">Rel. volume <span class="sort-indicator">↕</span></button></th>
+                <th><button class="sort-button" data-sort-key="phase" type="button" title="Click: add · Click again: reverse · Third click: remove">Wyckoff phase <span class="sort-indicator">↕</span></button></th>
+                <th><button class="sort-button" data-sort-key="signal" type="button" title="Click: add · Click again: reverse · Third click: remove">Signal <span class="sort-indicator">↕</span></button></th>
+                <th></th>
+              </tr></thead>
               <tbody id="opportunityRows"></tbody>
             </table>
           </div>

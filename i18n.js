@@ -71,6 +71,8 @@
     "Secondary test": "2차 테스트",
     "Open full scanner": "전체 스캐너 열기",
     "View all coins": "전체 코인 보기",
+    "Click: add · Click again: reverse · Third click: remove": "클릭: 추가 · 다시 클릭: 방향 반전 · 세 번째 클릭: 제거",
+    "Clear sorting": "정렬 초기화",
     "LIVE 1-MINUTE FLOW": "실시간 1분 수급",
     "LIVE": "실시간",
     "Volume fire": "거래량 점화",
