@@ -21,6 +21,9 @@ const VIEW_COPY = {
 let assets = structuredClone(FALLBACK);
 let selected = assets[0];
 let threshold = Number(localStorage.getItem("cc-threshold") || 2);
+const DOMESTIC_DOMINANCE_THRESHOLD = 40;
+let manualBlacklist = localStorage.getItem("cc-manual-blacklist") || "BTC, ETH, BNB, SOL, XRP";
+let lastUniverseFilterStats = null;
 const requestedView = location.pathname === "/how-to-use" ? "guide" : location.hash.slice(1);
 let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStorage.getItem("cc-view")] ? localStorage.getItem("cc-view") : "dashboard";
 let currentFilter = "all";
@@ -164,7 +167,27 @@ function buildQualifiedUniverse(rows) {
     .filter(row => !prioritySymbols.has(row.symbol.slice(0, -4)))
     .map((row, index) => toAsset(row, index + priority.length));
 
-  return [...priority, ...remaining].slice(0, QUALIFIED_UNIVERSE_SIZE);
+  return [...priority, ...remaining].slice(0, QUALIFIED_UNIVERSE_SIZE * 3);
+}
+
+function updateUniverseFilterStatus(stats = lastUniverseFilterStats) {
+  const status = qs("#universeFilterStatus");
+  if (!status) return;
+  const korean = window.I18N?.language === "ko";
+  status.classList.remove("active", "partial");
+  if (!stats) {
+    status.textContent = korean ? "키리스 필터 로딩 중…" : "Keyless filter loading…";
+    return;
+  }
+  const partial = stats.warnings.length > 0;
+  status.classList.add(partial ? "partial" : "active");
+  status.textContent = korean
+    ? `키리스 필터 · ${stats.excluded}개 제외`
+    : `Keyless filter · ${stats.excluded} excluded`;
+  status.dataset.domesticExcluded = stats.domesticSymbols.join(",");
+  status.title = korean
+    ? `수동 ${stats.manual} · 상장 조건 ${stats.listing} · 국내 비중 40% 이상 ${stats.domestic}${stats.domesticSymbols.length ? ` (${stats.domesticSymbols.join(", ")})` : ""}${partial ? ` · 일부 피드 실패: ${stats.warnings.join(", ")}` : ""}`
+    : `Manual ${stats.manual} · Listing ${stats.listing} · Domestic share ≥40% ${stats.domestic}${stats.domesticSymbols.length ? ` (${stats.domesticSymbols.join(", ")})` : ""}${partial ? ` · Partial feeds: ${stats.warnings.join(", ")}` : ""}`;
 }
 
 function renderRows(openInlineChart = true) {
@@ -396,7 +419,17 @@ async function refreshLiveData() {
     const response = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr", { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error("feed unavailable");
     const rows = await response.json();
-    assets = buildQualifiedUniverse(rows);
+    const candidates = buildQualifiedUniverse(rows);
+    updateUniverseFilterStatus(null);
+    const filterResult = await window.MarketUniverseFilter.filterAssets({
+      assets: candidates,
+      futuresRows: rows,
+      manualBlacklist,
+      dominanceThreshold: DOMESTIC_DOMINANCE_THRESHOLD / 100
+    });
+    lastUniverseFilterStats = filterResult.stats;
+    assets = (filterResult.assets.length ? filterResult.assets : candidates).slice(0, QUALIFIED_UNIVERSE_SIZE);
+    updateUniverseFilterStatus();
     qs("#universeCount").textContent = assets.length;
     const volumeResults = await Promise.allSettled(assets.slice(0, 10).map(async asset => {
       const result = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${asset.symbol}USDT&interval=1m&limit=21`, { signal: AbortSignal.timeout(5000) });
@@ -422,6 +455,9 @@ async function refreshLiveData() {
     renderAll();
   } catch {
     qs("#universeCount").textContent = assets.length;
+    const status = qs("#universeFilterStatus");
+    status.classList.add("partial");
+    status.textContent = window.I18N?.language === "ko" ? "키리스 필터 · 공개 피드 확인 필요" : "Keyless filter · public feeds unavailable";
     qs("#feedStatus").textContent = "Demo feed";
     qs(".pulse").style.background = "#ff8d55";
     showToast("Demo feed active", "Live endpoint unavailable; scanner remains interactive.", "○");
@@ -525,14 +561,18 @@ qs(".brand").onclick = event => {
 qs("#settingsBtn").onclick = () => qs("#settingsDialog").showModal();
 qs("#thresholdRange").value = threshold;
 qs("#thresholdOutput").textContent = `${threshold.toFixed(1)}×`;
+qs("#blacklistInput").value = manualBlacklist;
 qs("#thresholdRange").oninput = event => {
   qs("#thresholdOutput").textContent = `${Number(event.target.value).toFixed(1)}×`;
 };
 qs("#saveSettingsBtn").onclick = () => {
   threshold = Number(qs("#thresholdRange").value);
+  manualBlacklist = qs("#blacklistInput").value.trim();
   localStorage.setItem("cc-threshold", threshold);
+  localStorage.setItem("cc-manual-blacklist", manualBlacklist);
   renderFire();
-  showToast("Scanner settings saved", `Ignition threshold set to ${threshold.toFixed(1)}×.`);
+  refreshLiveData();
+  showToast("Scanner settings saved", "Keyless blacklist refreshed with the 40% domestic-volume rule.");
 };
 qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test · ONDO breakout watch · ENA accumulation", "!");
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
@@ -561,6 +601,7 @@ document.addEventListener("keydown", event => {
   if (shortcuts[event.key.toLowerCase()]) setView(shortcuts[event.key.toLowerCase()]);
   if (event.key.toLowerCase() === "c") qs("#clearanceBtn").click();
 });
+window.addEventListener("catchingcat:language", () => updateUniverseFilterStatus());
 
 initChecklist();
 initJournal();

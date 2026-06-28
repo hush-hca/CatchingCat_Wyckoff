@@ -97,7 +97,7 @@
           </div>
           <div class="sort-toolbar">
             <span>Click: add · Click again: reverse · Third click: remove</span>
-            <button id="clearSortBtn" type="button" hidden>Clear sorting</button>
+            <div class="table-tools"><span class="filter-status" id="universeFilterStatus">Keyless filter loading…</span><button id="clearSortBtn" type="button" hidden>Clear sorting</button></div>
           </div>
           <div class="table-wrap">
             <table>
@@ -335,6 +335,7 @@
         <span class="modal-kicker">SCANNER CONTROL</span>
         <h2>Navigator settings</h2>
         <label class="field">Volume ignition threshold <output id="thresholdOutput">2.0×</output><input id="thresholdRange" type="range" min="2" max="5" value="2" step=".5"></label>
+        <div class="filter-policy"><span><strong>Domestic volume exclusion</strong><small>Exclude when Upbit + Bithumb reach 40% of comparable 24h volume.</small></span><b>≥40%</b></div>
         <label class="field">Permanent blacklist<textarea id="blacklistInput" rows="3" placeholder="BTC, ETH, XRP">BTC, ETH, BNB, SOL, XRP</textarea></label>
         <label class="toggle-row"><span><strong>Audio ignition alerts</strong><small>Short tone when RVOL crosses threshold</small></span><input type="checkbox" id="audioToggle"><i></i></label>
         <button class="execute-button" id="saveSettingsBtn" value="default">Save scanner settings</button>
@@ -342,6 +343,7 @@
     </dialog>
 
     <script src="i18n.js"></script>
+    <script src="market-universe-filter.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
