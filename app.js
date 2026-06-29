@@ -32,6 +32,9 @@ let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
 let journalEntries = readStorage("cc-journal", []);
 let expandedScannerSymbol = null;
 let scannerToggleToken = 0;
+let currentTimeframe = "4H";
+let chartRequestToken = 0;
+const chartCache = new Map();
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -150,9 +153,9 @@ function buildQualifiedUniverse(rows) {
       price,
       change,
       rvol: template?.rvol || rvol,
-      phase: template?.phase || phase,
-      phaseLabel: template?.phaseLabel || phaseCopy[phase][0],
-      signal: template?.signal || phaseCopy[phase][1],
+      phase,
+      phaseLabel: phaseCopy[phase][0],
+      signal: phaseCopy[phase][1],
       support: low,
       resistance: high
     };
@@ -272,47 +275,191 @@ function renderFire() {
   });
 }
 
-function chartData(asset) {
-  const seed = asset.symbol.charCodeAt(0);
-  let value = asset.support * 1.1;
-  const points = [];
-  for (let index = 0; index < 58; index += 1) {
-    const trend = index < 12 ? -0.006 : index < 42 ? 0.001 : 0.007;
-    value *= 1 + trend + Math.sin((index + seed) * 1.7) * 0.011 + Math.cos(index * 0.6) * 0.006;
-    if (index === 36) value = asset.support * 0.965;
-    if (index === 37) value = asset.support * 1.045;
-    points.push(value);
-  }
-  const scale = asset.price / points.at(-1);
-  return points.map(point => point * scale);
+const PHASE_META = {
+  A: { label: "Stopping action", signal: "Base forming" },
+  B: { label: "Building cause", signal: "Accumulating" },
+  C: { label: "Spring / test", signal: "Test forming" },
+  D: { label: "Sign of strength", signal: "Breakout watch" },
+  E: { label: "Markup trend", signal: "Trend active" }
+};
+
+function percentile(values, ratio) {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)))];
 }
 
-function renderChart() {
-  const data = chartData(selected);
-  const W = 800, H = 230, pad = 22;
-  const min = Math.min(...data, selected.support) * 0.985;
-  const max = Math.max(...data, selected.resistance) * 1.015;
-  const x = index => pad + index * (W - pad * 2) / (data.length - 1);
-  const y = value => H - pad - (value - min) / (max - min) * (H - pad * 2);
-  const line = data.map((value, index) => `${index ? "L" : "M"}${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(" ");
-  const area = `${line} L${x(data.length - 1)},${H - pad} L${x(0)},${H - pad} Z`;
-  const volumes = data.map((value, index) => ({ x: x(index), h: 7 + Math.abs(Math.sin(index * 1.9)) * 19 + (index > 43 ? 12 : 0) }));
-  const labels = [
-    { i: 7, t: "PS", dy: -12 }, { i: 14, t: "SC", dy: 18 }, { i: 20, t: "AR", dy: -17 },
-    { i: 27, t: "ST", dy: 18 }, { i: 36, t: "SPRING", dy: 21 }, { i: 43, t: "TEST", dy: 18 }, { i: 51, t: "SOS", dy: -17 }
-  ];
-  qs("#wyckoffChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-    <defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#48e59b" stop-opacity=".18"/><stop offset="1" stop-color="#48e59b" stop-opacity="0"/></linearGradient></defs>
-    ${[0.2, 0.4, 0.6, 0.8].map(level => `<line x1="${pad}" y1="${pad + level * (H - pad * 2)}" x2="${W - pad}" y2="${pad + level * (H - pad * 2)}" stroke="rgba(190,225,209,.07)" stroke-dasharray="2 5"/>`).join("")}
-    <rect x="${pad}" y="${y(selected.resistance)}" width="${W - pad * 2}" height="${y(selected.support) - y(selected.resistance)}" fill="rgba(98,168,255,.025)" stroke="rgba(98,168,255,.13)" stroke-dasharray="4 5"/>
-    <line x1="${pad}" y1="${y(selected.support)}" x2="${W - pad}" y2="${y(selected.support)}" stroke="#62a8ff" stroke-opacity=".35" stroke-dasharray="4 4"/>
-    <line x1="${pad}" y1="${y(selected.resistance)}" x2="${W - pad}" y2="${y(selected.resistance)}" stroke="#62a8ff" stroke-opacity=".35" stroke-dasharray="4 4"/>
-    <path d="${area}" fill="url(#area)"/><path d="${line}" fill="none" stroke="#48e59b" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
-    ${volumes.map((volume, index) => `<rect x="${volume.x - 2}" y="${H - volume.h - 3}" width="3.2" height="${volume.h}" fill="${index > 43 ? "#48e59b" : "#345347"}" opacity="${index > 43 ? 0.55 : 0.32}"/>`).join("")}
-    ${labels.map(label => `<circle cx="${x(label.i)}" cy="${y(data[label.i])}" r="2.8" fill="#07100d" stroke="${label.t === "SPRING" ? "#ff8d55" : "#48e59b"}"/><text x="${x(label.i)}" y="${y(data[label.i]) + label.dy}" text-anchor="middle" fill="${label.t === "SPRING" ? "#ff8d55" : "#789085"}">${label.t}</text>`).join("")}
-    <line x1="${x(data.length - 1)}" y1="${y(data.at(-1))}" x2="${W - pad}" y2="${y(data.at(-1))}" stroke="#48e59b" stroke-opacity=".5" stroke-dasharray="2 3"/>
-    <rect x="${W - 49}" y="${y(data.at(-1)) - 8}" width="45" height="16" rx="3" fill="#48e59b"/><text x="${W - 26.5}" y="${y(data.at(-1)) + 2}" text-anchor="middle" style="fill:#07100d">${selected.price.toFixed(selected.price < 10 ? 3 : 2)}</text>
+function estimateWyckoffPhase(candles) {
+  const referenceEnd = Math.max(18, candles.length - 12);
+  const reference = candles.slice(0, referenceEnd);
+  const support = percentile(reference.map(candle => candle.low), 0.08);
+  const resistance = percentile(reference.map(candle => candle.high), 0.92);
+  const last = candles.at(-1);
+  const searchStart = referenceEnd;
+  let springIndex = -1;
+  let breakoutIndex = -1;
+
+  for (let index = searchStart; index < candles.length; index += 1) {
+    if (springIndex < 0 && candles[index].low < support * 0.995 && candles[index].close > support) springIndex = index;
+    if (breakoutIndex < 0 && candles[index].close > resistance * 1.005) breakoutIndex = index;
+  }
+
+  const recentCloses = candles.slice(-5).map(candle => candle.close);
+  const sustainedBreakout = breakoutIndex >= 0 && recentCloses.filter(close => close > resistance).length >= 4;
+  const tenBarsAgo = candles[Math.max(0, candles.length - 11)].close;
+  const slope = tenBarsAgo ? (last.close - tenBarsAgo) / tenBarsAgo : 0;
+  const rangePosition = resistance > support ? (last.close - support) / (resistance - support) : 0.5;
+  let phase = "B";
+  if (sustainedBreakout && slope > 0.025) phase = "E";
+  else if (breakoutIndex >= 0 && last.close > resistance * 0.995) phase = "D";
+  else if (springIndex >= 0 && last.close > support) phase = "C";
+  else if (rangePosition < 0.28 && slope < 0.02) phase = "A";
+
+  const firstHalf = candles.slice(0, referenceEnd);
+  const sellingClimaxIndex = firstHalf.reduce((lowest, candle, index) =>
+    candle.low < firstHalf[lowest].low ? index : lowest, 0);
+  const preliminarySupportIndex = Math.max(1, sellingClimaxIndex - 5);
+  const rallyWindow = candles.slice(sellingClimaxIndex + 1, Math.min(referenceEnd, sellingClimaxIndex + 14));
+  const automaticRallyIndex = rallyWindow.length
+    ? sellingClimaxIndex + 1 + rallyWindow.reduce((highest, candle, index) => candle.high > rallyWindow[highest].high ? index : highest, 0)
+    : Math.min(candles.length - 1, sellingClimaxIndex + 5);
+  const secondaryTestIndex = Math.min(referenceEnd - 1, automaticRallyIndex + 6);
+  const labels = [];
+  const addLabel = (index, text, dy) => {
+    if (index >= 0 && index < candles.length && !labels.some(label => label.index === index)) labels.push({ index, text, dy });
+  };
+
+  if (["A", "B", "C"].includes(phase)) {
+    addLabel(preliminarySupportIndex, "PS", -12);
+    addLabel(sellingClimaxIndex, "SC", 18);
+    addLabel(automaticRallyIndex, "AR", -15);
+  }
+  if (["B", "C"].includes(phase)) addLabel(secondaryTestIndex, "ST", 18);
+  if (phase === "C") {
+    addLabel(springIndex, "SPRING", 20);
+    addLabel(Math.min(candles.length - 1, springIndex + 3), "TEST", 18);
+  }
+  if (["D", "E"].includes(phase)) {
+    addLabel(breakoutIndex, "SOS", -16);
+    addLabel(Math.min(candles.length - 1, breakoutIndex + 3), "LPS", 18);
+  }
+  if (phase === "E") addLabel(candles.length - 3, "MARKUP", -16);
+
+  return { phase, support, resistance, labels: labels.sort((a, b) => a.index - b.index) };
+}
+
+function renderPhaseTrack(phase) {
+  const phases = ["A", "B", "C", "D", "E"];
+  const currentIndex = phases.indexOf(phase);
+  qsa(".phase-track [data-phase]").forEach(item => {
+    const index = phases.indexOf(item.dataset.phase);
+    item.classList.toggle("done", index < currentIndex);
+    item.classList.toggle("current", index === currentIndex);
+  });
+}
+
+function renderChartState(message) {
+  qs("#wyckoffChart").innerHTML = `<div class="chart-state"><span class="pulse"></span>${message}</div>`;
+}
+
+function chartCopy(english, korean) {
+  return window.I18N?.language === "ko" ? korean : english;
+}
+
+function renderChart(candles, estimate) {
+  const W = 800, H = 230, pad = 24, priceBottom = 184, volumeBottom = 225;
+  const lows = candles.map(candle => candle.low);
+  const highs = candles.map(candle => candle.high);
+  const min = Math.min(...lows, estimate.support) * 0.995;
+  const max = Math.max(...highs, estimate.resistance) * 1.005;
+  const spacing = (W - pad * 2) / candles.length;
+  const candleWidth = Math.max(2.2, Math.min(7, spacing * 0.58));
+  const x = index => pad + spacing * index + spacing / 2;
+  const y = value => priceBottom - (value - min) / Math.max(max - min, Number.EPSILON) * (priceBottom - pad);
+  const maxVolume = Math.max(...candles.map(candle => candle.volume), 1);
+  const last = candles.at(-1);
+
+  qs("#wyckoffChart").innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-label="${selected.symbol} ${currentTimeframe} live candlestick chart">
+    ${[0.2, 0.4, 0.6, 0.8].map(level => `<line x1="${pad}" y1="${pad + level * (priceBottom - pad)}" x2="${W - pad}" y2="${pad + level * (priceBottom - pad)}" stroke="rgba(190,225,209,.07)" stroke-dasharray="2 5"/>`).join("")}
+    <rect x="${pad}" y="${y(estimate.resistance)}" width="${W - pad * 2}" height="${Math.max(1, y(estimate.support) - y(estimate.resistance))}" fill="rgba(98,168,255,.025)" stroke="rgba(98,168,255,.13)" stroke-dasharray="4 5"/>
+    <line x1="${pad}" y1="${y(estimate.support)}" x2="${W - pad}" y2="${y(estimate.support)}" stroke="#62a8ff" stroke-opacity=".4" stroke-dasharray="4 4"/>
+    <line x1="${pad}" y1="${y(estimate.resistance)}" x2="${W - pad}" y2="${y(estimate.resistance)}" stroke="#62a8ff" stroke-opacity=".4" stroke-dasharray="4 4"/>
+    ${candles.map((candle, index) => {
+      const rising = candle.close >= candle.open;
+      const color = rising ? "#48e59b" : "#ff6868";
+      const bodyTop = y(Math.max(candle.open, candle.close));
+      const bodyHeight = Math.max(1.2, Math.abs(y(candle.open) - y(candle.close)));
+      const volumeHeight = Math.max(2, candle.volume / maxVolume * 31);
+      return `<line x1="${x(index)}" y1="${y(candle.high)}" x2="${x(index)}" y2="${y(candle.low)}" stroke="${color}" stroke-opacity=".72" vector-effect="non-scaling-stroke"/>
+        <rect x="${x(index) - candleWidth / 2}" y="${bodyTop}" width="${candleWidth}" height="${bodyHeight}" rx=".5" fill="${color}" opacity=".86"/>
+        <rect x="${x(index) - candleWidth / 2}" y="${volumeBottom - volumeHeight}" width="${candleWidth}" height="${volumeHeight}" fill="${color}" opacity=".22"/>`;
+    }).join("")}
+    ${estimate.labels.map(label => {
+      const candle = candles[label.index];
+      const labelY = label.dy > 0 ? y(candle.low) : y(candle.high);
+      const accent = label.text === "SPRING" ? "#ff8d55" : label.text === "SOS" ? "#48e59b" : "#789085";
+      return `<circle cx="${x(label.index)}" cy="${labelY}" r="2.7" fill="#07100d" stroke="${accent}"/><text x="${x(label.index)}" y="${labelY + label.dy}" text-anchor="middle" fill="${accent}">${label.text}</text>`;
+    }).join("")}
+    <line x1="${x(candles.length - 1)}" y1="${y(last.close)}" x2="${W - pad}" y2="${y(last.close)}" stroke="#48e59b" stroke-opacity=".55" stroke-dasharray="2 3"/>
+    <rect x="${W - 58}" y="${y(last.close) - 8}" width="54" height="16" rx="3" fill="#48e59b"/><text x="${W - 31}" y="${y(last.close) + 2}" text-anchor="middle" style="fill:#07100d">${last.close.toFixed(last.close < 10 ? 4 : 2)}</text>
   </svg>`;
+}
+
+async function loadSelectedChart() {
+  const symbol = selected.symbol;
+  const timeframe = currentTimeframe;
+  const interval = { "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" }[timeframe];
+  const cacheKey = `${symbol}:${interval}`;
+  const requestToken = ++chartRequestToken;
+  const cached = chartCache.get(cacheKey);
+  qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Loading ${timeframe} live structure…`, `${timeframe} 실시간 구조 로딩 중…`)}`;
+  renderChartState(chartCopy("Loading real-time candles…", "실시간 캔들 로딩 중…"));
+
+  try {
+    let payload = cached;
+    if (!payload || Date.now() - payload.fetchedAt > 60_000) {
+      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=60`, { signal: AbortSignal.timeout(6000) });
+      if (!response.ok) throw new Error("candles unavailable");
+      const rows = await response.json();
+      const candles = rows.map(row => ({
+        time: Number(row[0]),
+        open: Number(row[1]),
+        high: Number(row[2]),
+        low: Number(row[3]),
+        close: Number(row[4]),
+        volume: Number(row[5])
+      })).filter(candle => [candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite));
+      if (candles.length < 30) throw new Error("insufficient candles");
+      payload = { candles, estimate: estimateWyckoffPhase(candles), fetchedAt: Date.now() };
+      chartCache.set(cacheKey, payload);
+    }
+    if (requestToken !== chartRequestToken || selected.symbol !== symbol || currentTimeframe !== timeframe) return;
+
+    const meta = PHASE_META[payload.estimate.phase];
+    Object.assign(selected, {
+      price: payload.candles.at(-1).close,
+      phase: payload.estimate.phase,
+      phaseLabel: meta.label,
+      signal: meta.signal,
+      support: payload.estimate.support,
+      resistance: payload.estimate.resistance
+    });
+    const scrollTop = window.scrollY;
+    const scrollLeft = window.scrollX;
+    qs("#chartPrice").textContent = fmt(selected.price);
+    qs("#supportPrice").textContent = fmt(selected.support);
+    qs("#resistancePrice").textContent = fmt(selected.resistance);
+    qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Estimated Phase ${selected.phase} · ${selected.phaseLabel} · live ${timeframe}`, `추정 Phase ${selected.phase} · ${window.I18N?.tr(selected.phaseLabel) || selected.phaseLabel} · 실시간 ${timeframe}`)}`;
+    renderPhaseTrack(selected.phase);
+    updateJournalSetup();
+    renderRows();
+    restoreScrollPosition(scrollTop, scrollLeft);
+    renderChart(payload.candles, payload.estimate);
+  } catch {
+    if (requestToken !== chartRequestToken || selected.symbol !== symbol) return;
+    qs("#chartStructure").innerHTML = `<i class="meta-dot warning"></i>${chartCopy(`Live ${timeframe} structure unavailable`, `실시간 ${timeframe} 구조를 불러올 수 없음`)}`;
+    renderPhaseTrack(selected.phase);
+    renderChartState(chartCopy("Real-time candles unavailable", "실시간 캔들을 불러올 수 없습니다"));
+  }
 }
 
 function selectAsset(symbol, shouldRenderRows = true) {
@@ -329,7 +476,8 @@ function selectAsset(symbol, shouldRenderRows = true) {
   if (checklistVolume) checklistVolume.textContent = `${selected.rvol.toFixed(1)}× baseline`;
   updateJournalSetup();
   if (shouldRenderRows) renderRows();
-  renderChart();
+  renderPhaseTrack(selected.phase);
+  loadSelectedChart();
 }
 
 function restoreScrollPosition(top, left) {
@@ -548,7 +696,8 @@ qsa(".timeframes button").forEach(button => {
   button.onclick = () => {
     qsa(".timeframes button").forEach(item => item.classList.remove("active"));
     button.classList.add("active");
-    showToast(`${button.textContent} structure loaded`, "Support and resistance remain mechanically defined.", "⌁");
+    currentTimeframe = button.textContent.trim();
+    loadSelectedChart();
   };
 });
 qsa(".nav-item[data-view]").forEach(button => {
@@ -601,7 +750,10 @@ document.addEventListener("keydown", event => {
   if (shortcuts[event.key.toLowerCase()]) setView(shortcuts[event.key.toLowerCase()]);
   if (event.key.toLowerCase() === "c") qs("#clearanceBtn").click();
 });
-window.addEventListener("catchingcat:language", () => updateUniverseFilterStatus());
+window.addEventListener("catchingcat:language", () => {
+  updateUniverseFilterStatus();
+  loadSelectedChart();
+});
 
 initChecklist();
 initJournal();

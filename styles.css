@@ -122,10 +122,11 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .asset-title { display:flex;align-items:center;gap:9px; }.asset-title h2 small{font:600 10px Manrope;color:#6f857a;background:#16231e;padding:3px;border-radius:3px;vertical-align:middle}
 .chart-price { margin-left:auto;margin-right:20px;text-align:right; }.chart-price strong{display:block;font:500 14px "DM Mono";}.chart-price span{font:500 10px "DM Mono";}
 .timeframes { background:#08110e;border-radius:6px;padding:2px; }
-.chart-meta { display:flex;gap:18px;margin-top:14px;color:#667d72;font-size:10px; }.chart-meta b{color:#c6d3cd;font:500 10px "DM Mono";}.meta-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px}.meta-dot.green{background:var(--mint)}
+.chart-meta { display:flex;gap:18px;margin-top:14px;color:#667d72;font-size:10px; }.chart-meta b{color:#c6d3cd;font:500 10px "DM Mono";}.meta-dot{display:inline-block;width:5px;height:5px;border-radius:50%;margin-right:4px}.meta-dot.green{background:var(--mint)}.meta-dot.warning{background:var(--orange)}
 .chart { height:245px;margin:9px -8px 0;position:relative; }
 .chart svg { width:100%;height:100%;overflow:visible; }
 .chart text { font: 10px "DM Mono"; fill:#587066; }
+.chart-state { height:100%;display:flex;align-items:center;justify-content:center;gap:8px;color:var(--muted);font-size:10px; }
 .phase-track { display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);margin:0 -19px -19px; }
 .phase-track span { padding:9px 10px;color:#52675e;font:500 10px "DM Mono";border-right:1px solid var(--line);position:relative}.phase-track small{display:block;font:400 10px Manrope;margin-top:2px;color:#52675e}.phase-track .done{color:var(--mint)}.phase-track .current{color:#07100d;background:var(--mint)}.phase-track .current small{color:#19412f}
 .discipline-panel { padding-bottom:16px; }
