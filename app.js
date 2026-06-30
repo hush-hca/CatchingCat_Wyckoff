@@ -288,6 +288,33 @@ function percentile(values, ratio) {
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)))];
 }
 
+function buildPhaseLabels(candles, phase, events = {}) {
+  const labels = [];
+  const addLabel = (index, text, dy) => {
+    if (Number.isInteger(index) && index >= 0 && index < candles.length && !labels.some(label => label.index === index)) {
+      labels.push({ index, text, dy });
+    }
+  };
+
+  if (["A", "B", "C"].includes(phase)) {
+    addLabel(events.preliminarySupportIndex, "PS", -12);
+    addLabel(events.sellingClimaxIndex, "SC", 18);
+    addLabel(events.automaticRallyIndex, "AR", -15);
+  }
+  if (["B", "C"].includes(phase)) addLabel(events.secondaryTestIndex, "ST", 18);
+  if (phase === "C" && events.springIndex >= 0) {
+    addLabel(events.springIndex, "SPRING", 20);
+    addLabel(Math.min(candles.length - 1, events.springIndex + 3), "TEST", 18);
+  }
+  if (["D", "E"].includes(phase) && events.breakoutIndex >= 0) {
+    addLabel(events.breakoutIndex, "SOS", -16);
+    addLabel(Math.min(candles.length - 1, events.breakoutIndex + 3), "LPS", 18);
+  }
+  if (phase === "E") addLabel(candles.length - 3, "MARKUP", -16);
+
+  return labels.sort((a, b) => a.index - b.index);
+}
+
 function estimateWyckoffPhase(candles) {
   const referenceEnd = Math.max(18, candles.length - 12);
   const reference = candles.slice(0, referenceEnd);
@@ -323,28 +350,16 @@ function estimateWyckoffPhase(candles) {
     ? sellingClimaxIndex + 1 + rallyWindow.reduce((highest, candle, index) => candle.high > rallyWindow[highest].high ? index : highest, 0)
     : Math.min(candles.length - 1, sellingClimaxIndex + 5);
   const secondaryTestIndex = Math.min(referenceEnd - 1, automaticRallyIndex + 6);
-  const labels = [];
-  const addLabel = (index, text, dy) => {
-    if (index >= 0 && index < candles.length && !labels.some(label => label.index === index)) labels.push({ index, text, dy });
+  const events = {
+    preliminarySupportIndex,
+    sellingClimaxIndex,
+    automaticRallyIndex,
+    secondaryTestIndex,
+    springIndex,
+    breakoutIndex
   };
 
-  if (["A", "B", "C"].includes(phase)) {
-    addLabel(preliminarySupportIndex, "PS", -12);
-    addLabel(sellingClimaxIndex, "SC", 18);
-    addLabel(automaticRallyIndex, "AR", -15);
-  }
-  if (["B", "C"].includes(phase)) addLabel(secondaryTestIndex, "ST", 18);
-  if (phase === "C") {
-    addLabel(springIndex, "SPRING", 20);
-    addLabel(Math.min(candles.length - 1, springIndex + 3), "TEST", 18);
-  }
-  if (["D", "E"].includes(phase)) {
-    addLabel(breakoutIndex, "SOS", -16);
-    addLabel(Math.min(candles.length - 1, breakoutIndex + 3), "LPS", 18);
-  }
-  if (phase === "E") addLabel(candles.length - 3, "MARKUP", -16);
-
-  return { phase, support, resistance, labels: labels.sort((a, b) => a.index - b.index) };
+  return { phase, support, resistance, events, labels: buildPhaseLabels(candles, phase, events) };
 }
 
 function renderPhaseTrack(phase) {
@@ -434,8 +449,13 @@ async function loadSelectedChart() {
     }
     if (requestToken !== chartRequestToken || selected.symbol !== symbol || currentTimeframe !== timeframe) return;
 
-    const chartPhase = payload.estimate.phase;
+    const chartPhase = selected.phase;
     const meta = PHASE_META[chartPhase];
+    const chartEstimate = {
+      ...payload.estimate,
+      phase: chartPhase,
+      labels: buildPhaseLabels(payload.candles, chartPhase, payload.estimate.events)
+    };
     Object.assign(selected, {
       price: payload.candles.at(-1).close,
       support: payload.estimate.support,
@@ -446,10 +466,10 @@ async function loadSelectedChart() {
     qs("#chartPrice").textContent = fmt(selected.price);
     qs("#supportPrice").textContent = fmt(selected.support);
     qs("#resistancePrice").textContent = fmt(selected.resistance);
-    qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Chart estimate: Phase ${chartPhase} · ${meta.label} · live ${timeframe}`, `차트 추정: Phase ${chartPhase} · ${window.I18N?.tr(meta.label) || meta.label} · 실시간 ${timeframe}`)}`;
+    qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Scanner Phase ${chartPhase} · ${meta.label} · live ${timeframe}`, `스캐너 Phase ${chartPhase} · ${window.I18N?.tr(meta.label) || meta.label} · 실시간 ${timeframe}`)}`;
     renderPhaseTrack(chartPhase);
     updateJournalSetup();
-    renderChart(payload.candles, payload.estimate);
+    renderChart(payload.candles, chartEstimate);
     restoreScrollPosition(scrollTop, scrollLeft);
   } catch {
     if (requestToken !== chartRequestToken || selected.symbol !== symbol) return;
