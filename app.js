@@ -432,7 +432,7 @@ async function loadSelectedChart() {
   try {
     let payload = cached;
     if (!payload || Date.now() - payload.fetchedAt > 60_000) {
-      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=60`, { signal: AbortSignal.timeout(6000) });
+      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=200`, { signal: AbortSignal.timeout(6000) });
       if (!response.ok) throw new Error("candles unavailable");
       const rows = await response.json();
       const candles = rows.map(row => ({
