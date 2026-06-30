@@ -434,12 +434,10 @@ async function loadSelectedChart() {
     }
     if (requestToken !== chartRequestToken || selected.symbol !== symbol || currentTimeframe !== timeframe) return;
 
-    const meta = PHASE_META[payload.estimate.phase];
+    const chartPhase = payload.estimate.phase;
+    const meta = PHASE_META[chartPhase];
     Object.assign(selected, {
       price: payload.candles.at(-1).close,
-      phase: payload.estimate.phase,
-      phaseLabel: meta.label,
-      signal: meta.signal,
       support: payload.estimate.support,
       resistance: payload.estimate.resistance
     });
@@ -448,12 +446,11 @@ async function loadSelectedChart() {
     qs("#chartPrice").textContent = fmt(selected.price);
     qs("#supportPrice").textContent = fmt(selected.support);
     qs("#resistancePrice").textContent = fmt(selected.resistance);
-    qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Estimated Phase ${selected.phase} · ${selected.phaseLabel} · live ${timeframe}`, `추정 Phase ${selected.phase} · ${window.I18N?.tr(selected.phaseLabel) || selected.phaseLabel} · 실시간 ${timeframe}`)}`;
-    renderPhaseTrack(selected.phase);
+    qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Chart estimate: Phase ${chartPhase} · ${meta.label} · live ${timeframe}`, `차트 추정: Phase ${chartPhase} · ${window.I18N?.tr(meta.label) || meta.label} · 실시간 ${timeframe}`)}`;
+    renderPhaseTrack(chartPhase);
     updateJournalSetup();
-    renderRows();
-    restoreScrollPosition(scrollTop, scrollLeft);
     renderChart(payload.candles, payload.estimate);
+    restoreScrollPosition(scrollTop, scrollLeft);
   } catch {
     if (requestToken !== chartRequestToken || selected.symbol !== symbol) return;
     qs("#chartStructure").innerHTML = `<i class="meta-dot warning"></i>${chartCopy(`Live ${timeframe} structure unavailable`, `실시간 ${timeframe} 구조를 불러올 수 없음`)}`;
