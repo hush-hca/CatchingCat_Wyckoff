@@ -632,7 +632,12 @@ async function analyzeAlphaAsset(asset) {
   const proximity = scoreVwapProximity(price, vwap);
   const depletion = scoreVolumeDepletion(session, proximity.distanceBps);
   const total = trend.score + proximity.score + depletion.score;
-  const long = price >= vwap;
+  const side = trend.direction === "bullish" ? "long" : trend.direction === "bearish" ? "short" : "neutral";
+  const phaseLabel = side === "long"
+    ? "Accumulation Phase D (Target Long)"
+    : side === "short"
+      ? "Distribution Phase D (Target Short)"
+      : "Phase D (No clear target)";
 
   return {
     symbol: asset.symbol,
@@ -645,8 +650,8 @@ async function analyzeAlphaAsset(asset) {
     proximity,
     depletion,
     total,
-    side: long ? "long" : "short",
-    phaseLabel: long ? "Accumulation Phase D (Target Long)" : "Distribution Phase D (Target Short)"
+    side,
+    phaseLabel
   };
 }
 
@@ -690,7 +695,7 @@ function renderAlphaRank(openInlineChart = true) {
   list.innerHTML = alphaRankings.map((item, index) => {
     const phaseLabel = alphaCopy(
       item.phaseLabel,
-      item.side === "long" ? "매집 Phase D (롱 후보)" : "분산 Phase D (숏 후보)"
+      item.side === "long" ? "매집 Phase D (롱 후보)" : item.side === "short" ? "분산 Phase D (숏 후보)" : "Phase D (방향 불명확)"
     );
     const trendLabel = alphaCopy(item.trend.label, {
       "Perfect bullish stack": "완전 정배열",
@@ -708,7 +713,7 @@ function renderAlphaRank(openInlineChart = true) {
       : "";
     return `<button class="alpha-row ${item.side} ${expandedAlphaSymbol === item.symbol ? "expanded" : ""}" type="button" data-alpha-symbol="${item.symbol}" aria-expanded="${expandedAlphaSymbol === item.symbol}">
       <span class="alpha-rank">#${index + 1}</span>
-      <span class="alpha-asset"><span class="coin-badge ${item.symbol.toLowerCase()}">${item.symbol[0]}</span><span><strong>${escapeHtml(item.symbol)}</strong><small>${escapeHtml(item.name)}</small></span></span>
+      <span class="alpha-asset"><strong>${escapeHtml(item.symbol)}</strong></span>
       <span class="alpha-direction"><b>${phaseLabel}</b><small>${trendLabel}</small></span>
       <span class="alpha-metric"><small>${alphaCopy("Trend", "추세")} · ${item.trend.score.toFixed(0)}/50</small><strong>${stack}</strong></span>
       <span class="alpha-metric"><small>VWAP · ${item.proximity.score.toFixed(1)}/30</small><strong>${fmt(item.vwap)} <i>${item.proximity.distanceBps.toFixed(1)} bp</i></strong></span>

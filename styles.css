@@ -158,15 +158,15 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .alpha-row.expanded { background:rgba(72,229,155,.065);border-bottom-color:rgba(72,229,155,.18); }
 .alpha-row.long { box-shadow:inset 2px 0 var(--mint); }
 .alpha-row.short { box-shadow:inset 2px 0 var(--danger); }
+.alpha-row.neutral { box-shadow:inset 2px 0 var(--blue); }
 .alpha-rank { color:#657c71;font:600 11px "DM Mono";text-align:center; }
-.alpha-asset { display:flex;align-items:center;gap:9px;min-width:0; }
-.alpha-asset .coin-badge { width:30px;height:30px;flex:none; }
-.alpha-asset strong,.alpha-asset small,.alpha-direction b,.alpha-direction small,.alpha-metric small,.alpha-metric strong { display:block; }
+.alpha-asset { display:flex;align-items:center;min-width:0; }
+.alpha-asset strong,.alpha-direction b,.alpha-direction small,.alpha-metric small,.alpha-metric strong { display:block; }
 .alpha-asset strong { font:600 11px "DM Mono"; }
-.alpha-asset small { color:var(--muted);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 .alpha-direction b { font-size:10px;line-height:1.35; }
 .alpha-row.long .alpha-direction b { color:var(--mint); }
 .alpha-row.short .alpha-direction b { color:var(--danger); }
+.alpha-row.neutral .alpha-direction b { color:var(--blue); }
 .alpha-direction small { color:#61786d;font-size:10px;margin-top:3px; }
 .alpha-metric small { color:#647a70;font-size:10px;margin-bottom:4px; }
 .alpha-metric strong { font:500 10px "DM Mono";white-space:nowrap; }
