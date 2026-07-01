@@ -14,6 +14,7 @@ const VIEW_COPY = {
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
+  alpha: ["Alpha Rank", "Phase D opportunities ranked by trend clarity, VWAP precision, and volume depletion."],
   journal: ["Decision Journal", "Write the rule before the market gives you a story."],
   guide: ["How to use", "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다."]
 };
@@ -35,6 +36,10 @@ let scannerToggleToken = 0;
 let currentTimeframe = "4H";
 let chartRequestToken = 0;
 const chartCache = new Map();
+let alphaRankings = [];
+let alphaLoading = false;
+let alphaRunToken = 0;
+let liveUniverseReady = false;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -482,15 +487,12 @@ async function loadSelectedChart() {
 function selectAsset(symbol, shouldRenderRows = true) {
   selected = assets.find(asset => asset.symbol === symbol) || assets[0];
   qs("#chartSymbol").textContent = selected.symbol;
-  qs("#modalAsset").textContent = selected.symbol;
   qs("#chartPrice").textContent = fmt(selected.price);
   qs("#chartChange").textContent = `${selected.change >= 0 ? "+" : ""}${selected.change.toFixed(2)}%`;
   qs("#chartChange").className = selected.change >= 0 ? "up" : "down";
   qs("#supportPrice").textContent = fmt(selected.support);
   qs("#resistancePrice").textContent = fmt(selected.resistance);
   qs("#chartRvol").textContent = `${selected.rvol.toFixed(1)}×`;
-  const checklistVolume = qs("#checklistDialog .checklist label:nth-child(3) b");
-  if (checklistVolume) checklistVolume.textContent = `${selected.rvol.toFixed(1)}× baseline`;
   updateJournalSetup();
   if (shouldRenderRows) renderRows();
   renderPhaseTrack(selected.phase);
@@ -532,6 +534,229 @@ function toggleScannerChart(symbol) {
   }
 }
 
+function alphaCopy(english, korean) {
+  return window.I18N?.language === "ko" ? korean : english;
+}
+
+async function fetchPublicKlines(symbol, interval, limit, startTime) {
+  const start = Number.isFinite(startTime) ? `&startTime=${startTime}` : "";
+  const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=${limit}${start}`, {
+    signal: AbortSignal.timeout(8000)
+  });
+  if (!response.ok) throw new Error(`${symbol} ${interval} unavailable`);
+  const rows = await response.json();
+  const candles = rows.map(row => ({
+    time: Number(row[0]),
+    open: Number(row[1]),
+    high: Number(row[2]),
+    low: Number(row[3]),
+    close: Number(row[4]),
+    volume: Number(row[5])
+  })).filter(candle => [candle.time, candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite));
+  if (candles.length < Math.min(limit, 20)) throw new Error(`${symbol} ${interval} insufficient`);
+  return candles;
+}
+
+function simpleMovingAverage(candles, period = 200) {
+  const closes = candles.slice(-period).map(candle => candle.close);
+  if (closes.length < period) return NaN;
+  return closes.reduce((sum, close) => sum + close, 0) / closes.length;
+}
+
+function sessionVwap(candles) {
+  let weightedPrice = 0;
+  let totalVolume = 0;
+  candles.forEach(candle => {
+    const typicalPrice = (candle.high + candle.low + candle.close) / 3;
+    weightedPrice += typicalPrice * candle.volume;
+    totalVolume += candle.volume;
+  });
+  return totalVolume ? weightedPrice / totalVolume : NaN;
+}
+
+function scoreTrendAlignment(price, sma1h, sma4h) {
+  const bullish = price > sma1h && sma1h > sma4h;
+  const bearish = price < sma1h && sma1h < sma4h;
+  if (bullish) return { score: 50, direction: "bullish", label: "Perfect bullish stack" };
+  if (bearish) return { score: 50, direction: "bearish", label: "Perfect bearish stack" };
+
+  const aboveBoth = price > sma1h && price > sma4h;
+  const belowBoth = price < sma1h && price < sma4h;
+  if (aboveBoth || belowBoth) {
+    return {
+      score: 22,
+      direction: aboveBoth ? "bullish" : "bearish",
+      label: "Directional, MAs tangled"
+    };
+  }
+  return { score: 0, direction: "ambiguous", label: "Ambiguous trend" };
+}
+
+function scoreVwapProximity(price, vwap) {
+  const distanceBps = Math.abs(price - vwap) / vwap * 10_000;
+  return {
+    distanceBps,
+    score: Math.min(30, 30 * Math.exp(-distanceBps / 20))
+  };
+}
+
+function scoreVolumeDepletion(candles, distanceBps) {
+  const current = candles.at(-1);
+  const completed = candles.slice(-21, -1);
+  const average = completed.reduce((sum, candle) => sum + candle.volume, 0) / Math.max(completed.length, 1);
+  const elapsedFraction = Math.min(1, Math.max(0.15, (Date.now() - current.time) / (5 * 60_000)));
+  const projectedVolume = current.volume / elapsedFraction;
+  const ratio = average ? projectedVolume / average : 1;
+  const nearVwap = distanceBps <= 50;
+  const score = nearVwap ? 20 * Math.max(0, Math.min(1, (1 - ratio) / 0.7)) : 0;
+  return { ratio, score, nearVwap };
+}
+
+async function analyzeAlphaAsset(asset) {
+  const now = new Date();
+  const sessionStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const [hourly, fourHourly, session] = await Promise.all([
+    fetchPublicKlines(asset.symbol, "1h", 200),
+    fetchPublicKlines(asset.symbol, "4h", 200),
+    fetchPublicKlines(asset.symbol, "5m", 300, sessionStart)
+  ]);
+  const price = session.at(-1).close;
+  const sma1h = simpleMovingAverage(hourly);
+  const sma4h = simpleMovingAverage(fourHourly);
+  const vwap = sessionVwap(session);
+  if (![price, sma1h, sma4h, vwap].every(Number.isFinite)) throw new Error(`${asset.symbol} analysis incomplete`);
+
+  const trend = scoreTrendAlignment(price, sma1h, sma4h);
+  const proximity = scoreVwapProximity(price, vwap);
+  const depletion = scoreVolumeDepletion(session, proximity.distanceBps);
+  const total = trend.score + proximity.score + depletion.score;
+  const long = price >= vwap;
+
+  return {
+    symbol: asset.symbol,
+    name: asset.name,
+    price,
+    sma1h,
+    sma4h,
+    vwap,
+    trend,
+    proximity,
+    depletion,
+    total,
+    side: long ? "long" : "short",
+    phaseLabel: long ? "Accumulation Phase D (Target Long)" : "Distribution Phase D (Target Short)"
+  };
+}
+
+async function mapWithConcurrency(items, concurrency, worker, onProgress) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  let completed = 0;
+  const runner = async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      try {
+        results[index] = await worker(items[index]);
+      } catch (error) {
+        results[index] = { error, symbol: items[index].symbol };
+      }
+      completed += 1;
+      onProgress?.(completed, items.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runner));
+  return results;
+}
+
+function renderAlphaRank() {
+  const list = qs("#alphaList");
+  if (!list) return;
+  if (!alphaRankings.length) {
+    list.innerHTML = alphaLoading ? "" : `<div class="alpha-empty">${alphaCopy(
+      "No analyzed Phase D assets are available yet.",
+      "분석 가능한 Phase D 종목이 아직 없습니다."
+    )}</div>`;
+    return;
+  }
+
+  list.innerHTML = alphaRankings.map((item, index) => {
+    const phaseLabel = alphaCopy(
+      item.phaseLabel,
+      item.side === "long" ? "매집 Phase D (롱 후보)" : "분산 Phase D (숏 후보)"
+    );
+    const trendLabel = alphaCopy(item.trend.label, {
+      "Perfect bullish stack": "완전 정배열",
+      "Perfect bearish stack": "완전 역배열",
+      "Directional, MAs tangled": "방향성 있음 · 이평선 혼조",
+      "Ambiguous trend": "추세 불명확"
+    }[item.trend.label] || item.trend.label);
+    const stack = item.trend.direction === "bullish"
+      ? `${fmt(item.price)} > ${fmt(item.sma1h)} > ${fmt(item.sma4h)}`
+      : item.trend.direction === "bearish"
+        ? `${fmt(item.price)} < ${fmt(item.sma1h)} < ${fmt(item.sma4h)}`
+        : `${fmt(item.price)} · ${fmt(item.sma1h)} · ${fmt(item.sma4h)}`;
+    return `<button class="alpha-row ${item.side}" type="button" data-alpha-symbol="${item.symbol}">
+      <span class="alpha-rank">#${index + 1}</span>
+      <span class="alpha-asset"><span class="coin-badge ${item.symbol.toLowerCase()}">${item.symbol[0]}</span><span><strong>${escapeHtml(item.symbol)}</strong><small>${escapeHtml(item.name)}</small></span></span>
+      <span class="alpha-direction"><b>${phaseLabel}</b><small>${trendLabel}</small></span>
+      <span class="alpha-metric"><small>${alphaCopy("Trend", "추세")} · ${item.trend.score.toFixed(0)}/50</small><strong>${stack}</strong></span>
+      <span class="alpha-metric"><small>VWAP · ${item.proximity.score.toFixed(1)}/30</small><strong>${fmt(item.vwap)} <i>${item.proximity.distanceBps.toFixed(1)} bp</i></strong></span>
+      <span class="alpha-metric"><small>${alphaCopy("Dry-up", "거래량 고갈")} · ${item.depletion.score.toFixed(1)}/20</small><strong>${item.depletion.ratio.toFixed(2)}× avg</strong></span>
+      <span class="alpha-total"><strong>${item.total.toFixed(1)}</strong><small>/ 100</small></span>
+    </button>`;
+  }).join("");
+
+  qsa("[data-alpha-symbol]").forEach(button => {
+    button.onclick = () => {
+      const symbol = button.dataset.alphaSymbol;
+      setView("scanner");
+      requestAnimationFrame(() => toggleScannerChart(symbol));
+    };
+  });
+}
+
+async function refreshAlphaRank() {
+  if (alphaLoading) return;
+  const candidates = assets.filter(asset => asset.phase === "D").map(asset => ({ ...asset }));
+  const status = qs("#alphaStatus");
+  const updated = qs("#alphaUpdated");
+  const token = ++alphaRunToken;
+  alphaLoading = true;
+  alphaRankings = [];
+  renderAlphaRank();
+
+  if (!candidates.length) {
+    alphaLoading = false;
+    status.innerHTML = `<span>○</span><div><strong>${alphaCopy("No Phase D candidates", "Phase D 후보 없음")}</strong><small>${alphaCopy("The current scanner snapshot contains no eligible assets.", "현재 스캐너 결과에 대상 종목이 없습니다.")}</small></div>`;
+    updated.textContent = alphaCopy("0 eligible assets", "대상 0개");
+    renderAlphaRank();
+    return;
+  }
+
+  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Phase D candidates", "Phase D 후보 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
+  updated.textContent = alphaCopy(`${candidates.length} eligible assets`, `대상 ${candidates.length}개`);
+
+  const results = await mapWithConcurrency(candidates, 6, analyzeAlphaAsset, (completed, total) => {
+    if (token !== alphaRunToken) return;
+    const detail = status.querySelector("small");
+    if (detail) detail.textContent = `${completed} / ${total}`;
+  });
+  if (token !== alphaRunToken) return;
+
+  const failed = results.filter(result => result?.error).length;
+  alphaRankings = results
+    .filter(result => result && !result.error)
+    .sort((left, right) => right.total - left.total || right.trend.score - left.trend.score || left.proximity.distanceBps - right.proximity.distanceBps);
+  alphaLoading = false;
+  status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Ranking live", "실시간 순위 완료")}</strong><small>${alphaCopy(
+    `${alphaRankings.length} ranked${failed ? ` · ${failed} unavailable` : ""}`,
+    `${alphaRankings.length}개 순위${failed ? ` · ${failed}개 데이터 실패` : ""}`
+  )}</small></div>`;
+  updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  renderAlphaRank();
+}
+
 function setView(view) {
   if (!VIEW_COPY[view]) return;
   if (view !== "scanner") expandedScannerSymbol = null;
@@ -552,6 +777,10 @@ function setView(view) {
   qs("#opportunityEyebrow").textContent = view === "watchlist" ? "FOCUSED UNIVERSE" : "INSTITUTIONAL FOOTPRINTS";
   renderRows();
   if (view === "journal") renderJournal();
+  if (view === "alpha") {
+    renderAlphaRank();
+    if (liveUniverseReady) refreshAlphaRank();
+  }
 }
 
 function showToast(title, detail, icon = "✓") {
@@ -627,7 +856,9 @@ async function refreshLiveData() {
     qs(".pulse").style.background = "#ff8d55";
     showToast("Demo feed active", "Live endpoint unavailable; scanner remains interactive.", "○");
   }
+  liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  if (currentView === "alpha") refreshAlphaRank();
 }
 
 function renderAll() {
@@ -635,30 +866,6 @@ function renderAll() {
   renderTickers();
   renderFire();
   selectAsset(selected.symbol);
-}
-
-function initChecklist() {
-  const dialog = qs("#checklistDialog");
-  const checks = qsa(".checklist input");
-  const update = () => {
-    const valid = checks.every(check => check.checked);
-    const result = qs("#clearanceResult");
-    const button = qs("#executeBtn");
-    button.disabled = !valid;
-    result.classList.toggle("valid", valid);
-    result.innerHTML = valid
-      ? `<span>✓</span><div><strong>Chase entry valid — clearance granted</strong><small>Open your order window and execute the trade now.</small></div>`
-      : `<span>⏳</span><div><strong>Clearance withheld</strong><small>Confirm all four rules to unlock the conclusion.</small></div>`;
-  };
-  checks.forEach(check => { check.onchange = update; });
-  const open = () => {
-    checks.forEach((check, index) => { check.checked = index === 0; });
-    update();
-    dialog.showModal();
-  };
-  qs("#clearanceBtn").onclick = open;
-  qs("#checklistNav").onclick = open;
-  qs("#executeBtn").onclick = () => showToast("Manual execution cleared", "No order was placed. Your exchange remains under your control.");
 }
 
 function initJournal() {
@@ -741,6 +948,8 @@ qs("#saveSettingsBtn").onclick = () => {
   showToast("Scanner settings saved", "Keyless blacklist refreshed with the 40% domestic-volume rule.");
 };
 qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test · ONDO breakout watch · ENA accumulation", "!");
+qs("#alphaRankBtn").onclick = () => setView("alpha");
+qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
 function openFullScanner() {
   setView("scanner");
@@ -757,22 +966,19 @@ qs("#browseScannerBtn").onclick = openFullScanner;
 qsa("[data-guide-view]").forEach(button => {
   button.onclick = () => setView(button.dataset.guideView);
 });
-qs("#guideChecklistBtn").onclick = () => qs("#clearanceBtn").click();
-qs("#guideChecklistFlow").onclick = () => qs("#clearanceBtn").click();
 
 document.addEventListener("keydown", event => {
   const tag = event.target.tagName;
   if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || qs("dialog[open]")) return;
-  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "j": "journal", "h": "guide" };
+  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "5": "alpha", "a": "alpha", "j": "journal", "h": "guide" };
   if (shortcuts[event.key.toLowerCase()]) setView(shortcuts[event.key.toLowerCase()]);
-  if (event.key.toLowerCase() === "c") qs("#clearanceBtn").click();
 });
 window.addEventListener("catchingcat:language", () => {
   updateUniverseFilterStatus();
   loadSelectedChart();
+  renderAlphaRank();
 });
 
-initChecklist();
 initJournal();
 updateJournalSetup();
 renderJournal();

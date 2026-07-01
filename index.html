@@ -26,8 +26,8 @@
         <button class="nav-item" data-view="volume"><span>↗</span> Volume Fire <em id="navIgnitionCount">12</em></button>
         <button class="nav-item" data-view="scanner"><span>◎</span> Wyckoff Scanner</button>
         <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist <em id="watchCount">3</em></button>
-        <p>Discipline</p>
-        <button class="nav-item" id="checklistNav"><span>✓</span> Pre-trade check</button>
+        <p>Edge</p>
+        <button class="nav-item" data-view="alpha"><span>α</span> Alpha Rank</button>
         <button class="nav-item" data-view="journal"><span>▤</span> Decision journal</button>
         <p>Help</p>
         <button class="nav-item" data-view="guide"><span>?</span> How to use</button>
@@ -38,7 +38,7 @@
           <button type="button" data-language="ko"><span class="lang-full">한국어</span><span class="lang-short">한</span></button>
           <button type="button" data-language="en"><span class="lang-full">English</span><span class="lang-short">EN</span></button>
         </div>
-        <div class="shortcut-hint"><span>1—4</span> views · <span>C</span> clearance · <span>H</span> help</div>
+        <div class="shortcut-hint"><span>1—5</span> views · <span>A</span> Alpha Rank · <span>H</span> help</div>
         <button class="nav-item" id="settingsBtn"><span>⚙</span> Settings</button>
         <div class="operator">
           <span class="avatar">CC</span>
@@ -60,7 +60,7 @@
             <div><small>Market feed</small><strong id="feedStatus">Connecting…</strong></div>
           </div>
           <button class="icon-button" id="alertBtn" aria-label="View alerts">♢<b>3</b></button>
-          <button class="clearance" id="clearanceBtn"><span>✓</span> Run pre-trade check</button>
+          <button class="clearance" id="alphaRankBtn"><span>α</span> Open Alpha Rank</button>
         </div>
       </header>
 
@@ -161,7 +161,7 @@
           </div>
           <div class="discipline-state">
             <div class="ring"><span>3</span><small>ACTIVE<br/>RULES</small></div>
-            <div><strong>Stay mechanical.</strong><p>No valid entry exists without clearance. Observation is a position.</p></div>
+            <div><strong>Stay mechanical.</strong><p>Trade only clear structures. Observation is a position.</p></div>
           </div>
           <div class="rule-list">
             <div><span class="rule-icon warn">!</span><p><strong>Chase guard active</strong><small>SUI is 24.3% above range floor</small></p><b>Needs proof</b></div>
@@ -169,6 +169,31 @@
             <div><span class="rule-icon neutral">○</span><p><strong>Cooldown running</strong><small>11 min since last alert review</small></p><b>19 min</b></div>
           </div>
           <button class="ghost-button" id="reviewRulesBtn">Review trading rules</button>
+        </article>
+
+        <article class="panel alpha-panel" id="alphaPanel">
+          <div class="panel-head alpha-head">
+            <div>
+              <span class="eyebrow">PHASE D EXECUTION RADAR</span>
+              <h2>Alpha Rank</h2>
+              <p class="muted">Phase D assets ranked by SMA200 trend clarity, Session VWAP proximity, and volume depletion.</p>
+            </div>
+            <div class="alpha-actions">
+              <span class="live-badge"><i></i> LIVE</span>
+              <button type="button" id="refreshAlphaBtn">Refresh ranking</button>
+            </div>
+          </div>
+          <div class="alpha-score-key">
+            <span><b>50</b> Trend clarity</span>
+            <span><b>30</b> VWAP proximity</span>
+            <span><b>20</b> Volume depletion</span>
+            <small id="alphaUpdated">Waiting for Phase D scan results</small>
+          </div>
+          <div class="alpha-status" id="alphaStatus">
+            <span class="pulse"></span>
+            <div><strong>Preparing Alpha Rank</strong><small>Only scanner assets currently classified as Phase D are eligible.</small></div>
+          </div>
+          <div class="alpha-list" id="alphaList"></div>
         </article>
 
         <article class="panel journal-panel" id="journalPanel">
@@ -214,7 +239,7 @@
               <p>Catching Cat은 주문을 대신 넣는 봇이 아닙니다. 종목을 좁히고, 진입 조건을 검증하고, 손절 규칙을 지키게 돕는 장중 네비게이터입니다.</p>
               <div class="guide-actions">
                 <button type="button" data-guide-view="scanner">스캐너로 시작하기 <span>→</span></button>
-                <button type="button" id="guideChecklistBtn">진입 체크리스트 열기</button>
+                <button type="button" data-guide-view="alpha">Alpha Rank 열기</button>
               </div>
             </div>
             <div class="guide-principle">
@@ -230,7 +255,7 @@
               <article><b>1</b><span class="guide-icon">⚙</span><h4>기준 설정</h4><p><strong>Settings</strong>에서 Volume ignition threshold를 설정합니다. 처음에는 <em>2.0×</em>를 권장합니다.</p></article>
               <article><b>2</b><span class="guide-icon">◎</span><h4>후보 확인</h4><p><strong>Wyckoff Scanner</strong>에서 Phase, RVOL, 지지·저항을 함께 봅니다. 숫자 하나만 보고 진입하지 않습니다.</p></article>
               <article><b>3</b><span class="guide-icon">◇</span><h4>관심종목 고정</h4><p>종목 왼쪽의 <strong>◇</strong>를 눌러 Watchlist에 넣습니다. 장중에는 이 목록만 감시해 시야를 좁힙니다.</p></article>
-              <article><b>4</b><span class="guide-icon">✓</span><h4>진입 전 승인</h4><p><strong>Pre-trade check</strong>의 네 조건이 모두 초록색일 때만 거래소 주문창을 엽니다.</p></article>
+              <article><b>4</b><span class="guide-icon">α</span><h4>우선순위 확인</h4><p><strong>Alpha Rank</strong>에서 Phase D 후보의 추세, VWAP 근접도, 거래량 고갈 점수를 비교합니다.</p></article>
             </div>
           </section>
 
@@ -243,7 +268,7 @@
               <i>→</i>
               <button type="button" data-guide-view="watchlist"><b>3</b><span>Watchlist</span><small>후보만 집중 감시</small></button>
               <i>→</i>
-              <button type="button" id="guideChecklistFlow"><b>4</b><span>Clearance</span><small>네 조건 최종 검증</small></button>
+              <button type="button" data-guide-view="alpha"><b>4</b><span>Alpha Rank</span><small>Phase D 우선순위 확인</small></button>
               <i>→</i>
               <button type="button" data-guide-view="journal"><b>5</b><span>Journal</span><small>근거와 무효화 기록</small></button>
             </div>
@@ -266,13 +291,14 @@
                 <button type="button" data-guide-view="volume"><span>↗</span><div><strong>Volume Fire</strong><small>1분 RVOL이 큰 종목을 빠르게 발견</small></div></button>
                 <button type="button" data-guide-view="scanner"><span>◎</span><div><strong>Wyckoff Scanner</strong><small>구조·Phase·지지/저항을 비교</small></div></button>
                 <button type="button" data-guide-view="watchlist"><span>◇</span><div><strong>Watchlist</strong><small>내가 고른 종목만 집중 감시</small></div></button>
+                <button type="button" data-guide-view="alpha"><span>α</span><div><strong>Alpha Rank</strong><small>Phase D 롱·숏 후보를 점수순으로 정렬</small></div></button>
                 <button type="button" data-guide-view="journal"><span>▤</span><div><strong>Decision Journal</strong><small>진입 근거와 무효화 조건을 로컬 저장</small></div></button>
               </div>
             </div>
           </section>
 
           <section class="guide-section">
-            <div class="guide-section-head"><span>05</span><div><h3>실전 진입 규칙</h3><p>체크리스트가 거래 욕구보다 우선합니다.</p></div></div>
+            <div class="guide-section-head"><span>05</span><div><h3>실전 진입 규칙</h3><p>명확한 추세와 기준선 반응이 거래 욕구보다 우선합니다.</p></div></div>
             <div class="rule-matrix">
               <div class="rule-matrix-head"><span>상황</span><span>필수 확인</span><span>행동</span></div>
               <div><strong>Spring / 지지 테스트</strong><span>지지 이탈 후 4H 안에서 회복 + 재테스트 거래량 감소</span><b class="up">진입 대기</b></div>
@@ -286,7 +312,7 @@
             <div class="shortcut-card">
               <span class="eyebrow">FAST OPERATION</span>
               <h3>키보드 단축키</h3>
-              <div><kbd>1</kbd><span>Dashboard</span><kbd>2</kbd><span>Volume Fire</span><kbd>3</kbd><span>Scanner</span><kbd>4</kbd><span>Watchlist</span><kbd>J</kbd><span>Journal</span><kbd>C</kbd><span>Pre-trade check</span></div>
+              <div><kbd>1</kbd><span>Dashboard</span><kbd>2</kbd><span>Volume Fire</span><kbd>3</kbd><span>Scanner</span><kbd>4</kbd><span>Watchlist</span><kbd>5</kbd><span>Alpha Rank</span><kbd>J</kbd><span>Journal</span></div>
             </div>
             <div class="guide-note">
               <span>!</span>
@@ -303,31 +329,6 @@
     </main>
 
     <div class="toast-stack" id="toastStack"></div>
-
-    <dialog id="checklistDialog">
-      <form method="dialog" class="modal">
-        <button class="modal-close" value="cancel" aria-label="Close">×</button>
-        <span class="modal-kicker">FINAL CLEARANCE</span>
-        <h2>Brainless pre-trade check</h2>
-        <p>Every condition must be verified. No stories, no exceptions.</p>
-        <div class="check-asset">
-          <span class="coin-badge sui">S</span>
-          <div><small>CHECKING SETUP</small><strong><span id="modalAsset">SUI</span> / USDT</strong></div>
-          <span class="phase-pill">PHASE C</span>
-        </div>
-        <div class="checklist">
-          <label><input type="checkbox" checked><span class="custom-check"></span><span><strong>Qualified universe</strong><small>Listed on Binance Spot + Perpetual Futures</small></span></label>
-          <label><input type="checkbox"><span class="custom-check"></span><span><strong>Valid 4-hour structure</strong><small>Support test or confirmed breakout</small></span></label>
-          <label><input type="checkbox"><span class="custom-check"></span><span><strong>Relative volume ≥ 2×</strong><small>Current reading: <b class="up">4.8× baseline</b></small></span></label>
-          <label><input type="checkbox"><span class="custom-check"></span><span><strong>Bitcoin is supportive</strong><small>Trend stable, volatility contained</small></span></label>
-        </div>
-        <div class="clearance-result" id="clearanceResult">
-          <span>⏳</span><div><strong>Clearance withheld</strong><small>Confirm all four rules to unlock the conclusion.</small></div>
-        </div>
-        <button class="execute-button" id="executeBtn" value="default" disabled>Open order window — execute manually</button>
-        <small class="modal-foot">Catching Cat never places an order or connects to your trading account.</small>
-      </form>
-    </dialog>
 
     <dialog id="settingsDialog">
       <form method="dialog" class="modal small-modal">
