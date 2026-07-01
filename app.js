@@ -559,39 +559,112 @@ async function fetchPublicKlines(symbol, interval, limit, startTime) {
   return candles;
 }
 
-function simpleMovingAverage(candles, period = 200) {
-  const closes = candles.slice(-period).map(candle => candle.close);
+function simpleMovingAverage(candles, period = 200, offset = 0) {
+  const end = offset ? -offset : candles.length;
+  const start = offset ? -(period + offset) : -period;
+  const closes = candles.slice(start, end).map(candle => candle.close);
   if (closes.length < period) return NaN;
   return closes.reduce((sum, close) => sum + close, 0) / closes.length;
 }
 
-function sessionVwap(candles) {
+function movingAverageSlope(candles, period = 200, lookback = 20) {
+  const current = simpleMovingAverage(candles, period);
+  const previous = simpleMovingAverage(candles, period, lookback);
+  const percentPerBar = previous ? ((current - previous) / previous) / lookback * 100 : 0;
+  return {
+    current,
+    previous,
+    percentPerBar,
+    angle: Math.atan(percentPerBar) * 180 / Math.PI
+  };
+}
+
+function sessionVwapMetrics(candles, lookback = 12) {
   let weightedPrice = 0;
   let totalVolume = 0;
-  candles.forEach(candle => {
+  const series = candles.map(candle => {
     const typicalPrice = (candle.high + candle.low + candle.close) / 3;
     weightedPrice += typicalPrice * candle.volume;
     totalVolume += candle.volume;
+    return totalVolume ? weightedPrice / totalVolume : NaN;
   });
-  return totalVolume ? weightedPrice / totalVolume : NaN;
+  const current = series.at(-1);
+  const previousIndex = Math.max(0, series.length - 1 - lookback);
+  const previous = series[previousIndex];
+  const bars = Math.max(1, series.length - 1 - previousIndex);
+  const percentPerBar = previous ? ((current - previous) / previous) / bars * 100 : 0;
+  return {
+    current,
+    previous,
+    percentPerBar,
+    angle: Math.atan(percentPerBar) * 180 / Math.PI
+  };
 }
 
-function scoreTrendAlignment(price, sma1h, sma4h) {
-  const bullish = price > sma1h && sma1h > sma4h;
-  const bearish = price < sma1h && sma1h < sma4h;
-  if (bullish) return { score: 50, direction: "bullish", label: "Perfect bullish stack" };
-  if (bearish) return { score: 50, direction: "bearish", label: "Perfect bearish stack" };
+function scoreTrendClarity(price, averages, vwap) {
+  const alignmentFor = (sma100, sma200) => {
+    if (price > sma100 && sma100 > sma200) return "bullish";
+    if (price < sma100 && sma100 < sma200) return "bearish";
+    return "tangled";
+  };
+  const oneHour = alignmentFor(averages.sma1h100, averages.sma1h200.current);
+  const fourHour = alignmentFor(averages.sma4h100, averages.sma4h200.current);
+  const macroDirection = oneHour === fourHour && oneHour !== "tangled" ? oneHour : "ambiguous";
+  const minimumSlopeAngle = 0.5;
+  const slopeAligned = macroDirection === "bullish"
+    ? averages.sma1h200.angle > minimumSlopeAngle && averages.sma4h200.angle > minimumSlopeAngle
+    : macroDirection === "bearish"
+      ? averages.sma1h200.angle < -minimumSlopeAngle && averages.sma4h200.angle < -minimumSlopeAngle
+      : false;
+  const vwapAligned = macroDirection === "bullish"
+    ? price > vwap.current && vwap.angle > 0
+    : macroDirection === "bearish"
+      ? price < vwap.current && vwap.angle < 0
+      : false;
 
-  const aboveBoth = price > sma1h && price > sma4h;
-  const belowBoth = price < sma1h && price < sma4h;
-  if (aboveBoth || belowBoth) {
+  if (macroDirection !== "ambiguous" && slopeAligned && !vwapAligned) {
     return {
-      score: 22,
-      direction: aboveBoth ? "bullish" : "bearish",
-      label: "Directional, MAs tangled"
+      score: 0,
+      direction: "ambiguous",
+      macroDirection,
+      excluded: true,
+      label: "Trend conflict",
+      oneHour,
+      fourHour
     };
   }
-  return { score: 0, direction: "ambiguous", label: "Ambiguous trend" };
+  if (macroDirection !== "ambiguous" && slopeAligned && vwapAligned) {
+    return {
+      score: 50,
+      direction: macroDirection,
+      macroDirection,
+      excluded: false,
+      label: macroDirection === "bullish" ? "Bullish macro + VWAP convergence" : "Bearish macro + VWAP convergence",
+      oneHour,
+      fourHour
+    };
+  }
+  if (macroDirection !== "ambiguous") {
+    return {
+      score: 10,
+      direction: "ambiguous",
+      macroDirection,
+      excluded: false,
+      label: "Aligned but macro slope is flat",
+      oneHour,
+      fourHour
+    };
+  }
+  const partial = [oneHour, fourHour].filter(direction => direction !== "tangled").length === 1;
+  return {
+    score: partial ? 5 : 0,
+    direction: "ambiguous",
+    macroDirection,
+    excluded: false,
+    label: partial ? "Partial alignment" : "Sideways / tangled",
+    oneHour,
+    fourHour
+  };
 }
 
 function scoreVwapProximity(price, vwap) {
@@ -618,18 +691,24 @@ async function analyzeAlphaAsset(asset) {
   const now = new Date();
   const sessionStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
   const [hourly, fourHourly, session] = await Promise.all([
-    fetchPublicKlines(asset.symbol, "1h", 200),
-    fetchPublicKlines(asset.symbol, "4h", 200),
+    fetchPublicKlines(asset.symbol, "1h", 240),
+    fetchPublicKlines(asset.symbol, "4h", 240),
     fetchPublicKlines(asset.symbol, "5m", 300, sessionStart)
   ]);
   const price = session.at(-1).close;
-  const sma1h = simpleMovingAverage(hourly);
-  const sma4h = simpleMovingAverage(fourHourly);
-  const vwap = sessionVwap(session);
-  if (![price, sma1h, sma4h, vwap].every(Number.isFinite)) throw new Error(`${asset.symbol} analysis incomplete`);
+  const averages = {
+    sma1h100: simpleMovingAverage(hourly, 100),
+    sma1h200: movingAverageSlope(hourly),
+    sma4h100: simpleMovingAverage(fourHourly, 100),
+    sma4h200: movingAverageSlope(fourHourly)
+  };
+  const vwap = sessionVwapMetrics(session);
+  if (![price, averages.sma1h100, averages.sma1h200.current, averages.sma1h200.previous, averages.sma4h100, averages.sma4h200.current, averages.sma4h200.previous, vwap.current].every(Number.isFinite)) {
+    throw new Error(`${asset.symbol} analysis incomplete`);
+  }
 
-  const trend = scoreTrendAlignment(price, sma1h, sma4h);
-  const proximity = scoreVwapProximity(price, vwap);
+  const trend = scoreTrendClarity(price, averages, vwap);
+  const proximity = scoreVwapProximity(price, vwap.current);
   const depletion = scoreVolumeDepletion(session, proximity.distanceBps);
   const total = trend.score + proximity.score + depletion.score;
   const side = trend.direction === "bullish" ? "long" : trend.direction === "bearish" ? "short" : "neutral";
@@ -643,8 +722,7 @@ async function analyzeAlphaAsset(asset) {
     symbol: asset.symbol,
     name: asset.name,
     price,
-    sma1h,
-    sma4h,
+    averages,
     vwap,
     trend,
     proximity,
@@ -698,16 +776,19 @@ function renderAlphaRank(openInlineChart = true) {
       item.side === "long" ? "매집 Phase D (롱 후보)" : item.side === "short" ? "분산 Phase D (숏 후보)" : "Phase D (방향 불명확)"
     );
     const trendLabel = alphaCopy(item.trend.label, {
-      "Perfect bullish stack": "완전 정배열",
-      "Perfect bearish stack": "완전 역배열",
-      "Directional, MAs tangled": "방향성 있음 · 이평선 혼조",
-      "Ambiguous trend": "추세 불명확"
+      "Bullish macro + VWAP convergence": "상승 매크로 + VWAP 수렴",
+      "Bearish macro + VWAP convergence": "하락 매크로 + VWAP 수렴",
+      "Aligned but macro slope is flat": "정렬됨 · 매크로 기울기 횡보",
+      "Partial alignment": "일부 시간봉만 정렬",
+      "Sideways / tangled": "횡보 · 이평선 혼조"
     }[item.trend.label] || item.trend.label);
-    const stack = item.trend.direction === "bullish"
-      ? `${fmt(item.price)} > ${fmt(item.sma1h)} > ${fmt(item.sma4h)}`
-      : item.trend.direction === "bearish"
-        ? `${fmt(item.price)} < ${fmt(item.sma1h)} < ${fmt(item.sma4h)}`
-        : `${fmt(item.price)} · ${fmt(item.sma1h)} · ${fmt(item.sma4h)}`;
+    const alignmentText = direction => direction === "bullish"
+      ? "P > S100 > S200"
+      : direction === "bearish"
+        ? "P < S100 < S200"
+        : "TANGLED";
+    const stack = `1H ${alignmentText(item.trend.oneHour)} · 4H ${alignmentText(item.trend.fourHour)}`;
+    const slopeText = `200S ${item.averages.sma1h200.angle >= 0 ? "+" : ""}${item.averages.sma1h200.angle.toFixed(2)}° / ${item.averages.sma4h200.angle >= 0 ? "+" : ""}${item.averages.sma4h200.angle.toFixed(2)}°`;
     const inlineChart = expandedAlphaSymbol === item.symbol
       ? `<div class="alpha-inline-shell" data-alpha-chart-for="${item.symbol}"><div class="alpha-inline-mount"></div></div>`
       : "";
@@ -715,8 +796,8 @@ function renderAlphaRank(openInlineChart = true) {
       <span class="alpha-rank">#${index + 1}</span>
       <span class="alpha-asset"><strong>${escapeHtml(item.symbol)}</strong></span>
       <span class="alpha-direction"><b>${phaseLabel}</b><small>${trendLabel}</small></span>
-      <span class="alpha-metric"><small>${alphaCopy("Trend", "추세")} · ${item.trend.score.toFixed(0)}/50</small><strong>${stack}</strong></span>
-      <span class="alpha-metric"><small>VWAP · ${item.proximity.score.toFixed(1)}/30</small><strong>${fmt(item.vwap)} <i>${item.proximity.distanceBps.toFixed(1)} bp</i></strong></span>
+      <span class="alpha-metric"><small>${alphaCopy("Trend", "추세")} · ${item.trend.score.toFixed(0)}/50</small><strong>${stack}<i>${slopeText}</i></strong></span>
+      <span class="alpha-metric"><small>VWAP · ${item.proximity.score.toFixed(1)}/30</small><strong>${fmt(item.vwap.current)} <i>${item.proximity.distanceBps.toFixed(1)} bp · ${item.vwap.angle >= 0 ? "+" : ""}${item.vwap.angle.toFixed(2)}°</i></strong></span>
       <span class="alpha-metric"><small>${alphaCopy("Dry-up", "거래량 고갈")} · ${item.depletion.score.toFixed(1)}/20</small><strong>${item.depletion.ratio.toFixed(2)}× avg</strong></span>
       <span class="alpha-total"><strong>${item.total.toFixed(1)}</strong><small>/ 100</small></span>
     </button>${inlineChart}`;
@@ -798,13 +879,14 @@ async function refreshAlphaRank() {
   if (token !== alphaRunToken) return;
 
   const failed = results.filter(result => result?.error).length;
+  const excluded = results.filter(result => result?.trend?.excluded).length;
   alphaRankings = results
-    .filter(result => result && !result.error)
+    .filter(result => result && !result.error && !result.trend.excluded)
     .sort((left, right) => right.total - left.total || right.trend.score - left.trend.score || left.proximity.distanceBps - right.proximity.distanceBps);
   alphaLoading = false;
   status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Ranking live", "실시간 순위 완료")}</strong><small>${alphaCopy(
-    `${alphaRankings.length} ranked${failed ? ` · ${failed} unavailable` : ""}`,
-    `${alphaRankings.length}개 순위${failed ? ` · ${failed}개 데이터 실패` : ""}`
+    `${alphaRankings.length} ranked${excluded ? ` · ${excluded} conflicts excluded` : ""}${failed ? ` · ${failed} unavailable` : ""}`,
+    `${alphaRankings.length}개 순위${excluded ? ` · 충돌 ${excluded}개 제외` : ""}${failed ? ` · ${failed}개 데이터 실패` : ""}`
   )}</small></div>`;
   updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   renderAlphaRank();
