@@ -611,7 +611,11 @@ function scoreTrendClarity(price, averages, vwap) {
   const fourHour = alignmentFor(averages.sma4h100, averages.sma4h200.current);
   const distance1h = (price - averages.sma1h200.current) / averages.sma1h200.current * 100;
   const distance4h = (price - averages.sma4h200.current) / averages.sma4h200.current * 100;
-  const stronglyOpposed = (distance1h > 0.5 && distance4h < -0.5) || (distance1h < -0.5 && distance4h > 0.5);
+  const stronglyOpposed = oneHour !== "tangled"
+    && fourHour !== "tangled"
+    && oneHour !== fourHour
+    && Math.abs(distance1h) > 0.5
+    && Math.abs(distance4h) > 0.5;
   const tolerance = 0.3;
   let macroDirection = "ambiguous";
   let alignmentScore = 0;
@@ -703,6 +707,9 @@ function scoreVwapConvergence(price, vwap, macroDirection) {
     proximityScore,
     positionScore,
     slopeScore,
+    correctSide,
+    withinPullback,
+    slopeConfirms,
     score: proximityScore + positionScore + slopeScore,
     excluded: macroDirection !== "ambiguous" && wrongSideBeyondConflict && opposingSlope
   };
@@ -745,8 +752,9 @@ async function analyzeAlphaAsset(asset) {
   const depletion = scoreVolumeDepletion(session, proximity.distanceBps);
   const total = trend.score + proximity.score + depletion.score;
   const excluded = trend.excluded || proximity.excluded;
-  const directionQualified = trend.macroDirection !== "ambiguous" && trend.score >= 30;
-  const targetTier = directionQualified && total >= 70 ? "confirmed" : directionQualified && total >= 55 ? "developing" : "none";
+  const directionQualified = trend.macroDirection !== "ambiguous" && trend.score >= 30 && proximity.positionScore >= 4;
+  const confirmed = directionQualified && total >= 70 && proximity.correctSide && proximity.slopeScore >= 2;
+  const targetTier = confirmed ? "confirmed" : directionQualified && total >= 55 ? "developing" : "none";
   const side = targetTier === "none" ? "neutral" : trend.macroDirection === "bullish" ? "long" : "short";
   const phaseLabel = side === "long"
     ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Accumulation Phase D (Target Long)`
