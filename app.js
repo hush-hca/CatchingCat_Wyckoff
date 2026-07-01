@@ -40,6 +40,8 @@ let alphaRankings = [];
 let alphaLoading = false;
 let alphaRunToken = 0;
 let liveUniverseReady = false;
+let expandedAlphaSymbol = null;
+let alphaToggleToken = 0;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -669,9 +671,14 @@ async function mapWithConcurrency(items, concurrency, worker, onProgress) {
   return results;
 }
 
-function renderAlphaRank() {
+function renderAlphaRank(openInlineChart = true) {
   const list = qs("#alphaList");
   if (!list) return;
+  const chartPanel = qs("#selectedSetupPanel");
+  const chartAnchor = qs("#chartAnchor");
+  if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) {
+    chartAnchor.after(chartPanel);
+  }
   if (!alphaRankings.length) {
     list.innerHTML = alphaLoading ? "" : `<div class="alpha-empty">${alphaCopy(
       "No analyzed Phase D assets are available yet.",
@@ -696,7 +703,10 @@ function renderAlphaRank() {
       : item.trend.direction === "bearish"
         ? `${fmt(item.price)} < ${fmt(item.sma1h)} < ${fmt(item.sma4h)}`
         : `${fmt(item.price)} · ${fmt(item.sma1h)} · ${fmt(item.sma4h)}`;
-    return `<button class="alpha-row ${item.side}" type="button" data-alpha-symbol="${item.symbol}">
+    const inlineChart = expandedAlphaSymbol === item.symbol
+      ? `<div class="alpha-inline-shell" data-alpha-chart-for="${item.symbol}"><div class="alpha-inline-mount"></div></div>`
+      : "";
+    return `<button class="alpha-row ${item.side} ${expandedAlphaSymbol === item.symbol ? "expanded" : ""}" type="button" data-alpha-symbol="${item.symbol}" aria-expanded="${expandedAlphaSymbol === item.symbol}">
       <span class="alpha-rank">#${index + 1}</span>
       <span class="alpha-asset"><span class="coin-badge ${item.symbol.toLowerCase()}">${item.symbol[0]}</span><span><strong>${escapeHtml(item.symbol)}</strong><small>${escapeHtml(item.name)}</small></span></span>
       <span class="alpha-direction"><b>${phaseLabel}</b><small>${trendLabel}</small></span>
@@ -704,16 +714,52 @@ function renderAlphaRank() {
       <span class="alpha-metric"><small>VWAP · ${item.proximity.score.toFixed(1)}/30</small><strong>${fmt(item.vwap)} <i>${item.proximity.distanceBps.toFixed(1)} bp</i></strong></span>
       <span class="alpha-metric"><small>${alphaCopy("Dry-up", "거래량 고갈")} · ${item.depletion.score.toFixed(1)}/20</small><strong>${item.depletion.ratio.toFixed(2)}× avg</strong></span>
       <span class="alpha-total"><strong>${item.total.toFixed(1)}</strong><small>/ 100</small></span>
-    </button>`;
+    </button>${inlineChart}`;
   }).join("");
 
+  const inlineMount = qs(".alpha-inline-mount");
+  if (inlineMount && chartPanel) {
+    inlineMount.append(chartPanel);
+    if (openInlineChart) qs(".alpha-inline-shell")?.classList.add("open");
+  }
+
   qsa("[data-alpha-symbol]").forEach(button => {
-    button.onclick = () => {
-      const symbol = button.dataset.alphaSymbol;
-      setView("scanner");
-      requestAnimationFrame(() => toggleScannerChart(symbol));
-    };
+    button.onclick = () => toggleAlphaChart(button.dataset.alphaSymbol);
   });
+}
+
+function toggleAlphaChart(symbol) {
+  const scrollTop = window.scrollY;
+  const scrollLeft = window.scrollX;
+  const listScrollLeft = qs("#alphaList")?.scrollLeft || 0;
+  const sameSymbol = expandedAlphaSymbol === symbol;
+  const openShell = qs(".alpha-inline-shell.open");
+  const token = ++alphaToggleToken;
+
+  const commitToggle = () => {
+    if (token !== alphaToggleToken) return;
+    expandedAlphaSymbol = sameSymbol ? null : symbol;
+    if (!sameSymbol) selectAsset(symbol, false);
+    renderAlphaRank(false);
+    if (qs("#alphaList")) qs("#alphaList").scrollLeft = listScrollLeft;
+    restoreScrollPosition(scrollTop, scrollLeft);
+    if (!sameSymbol) {
+      requestAnimationFrame(() => {
+        if (token !== alphaToggleToken) return;
+        qs(".alpha-inline-shell")?.classList.add("open");
+        if (qs("#alphaList")) qs("#alphaList").scrollLeft = listScrollLeft;
+        restoreScrollPosition(scrollTop, scrollLeft);
+      });
+    }
+  };
+
+  if (openShell) {
+    openShell.classList.remove("open");
+    restoreScrollPosition(scrollTop, scrollLeft);
+    window.setTimeout(commitToggle, 220);
+  } else {
+    commitToggle();
+  }
 }
 
 async function refreshAlphaRank() {
@@ -722,6 +768,8 @@ async function refreshAlphaRank() {
   const status = qs("#alphaStatus");
   const updated = qs("#alphaUpdated");
   const token = ++alphaRunToken;
+  expandedAlphaSymbol = null;
+  alphaToggleToken += 1;
   alphaLoading = true;
   alphaRankings = [];
   renderAlphaRank();
@@ -760,6 +808,10 @@ async function refreshAlphaRank() {
 function setView(view) {
   if (!VIEW_COPY[view]) return;
   if (view !== "scanner") expandedScannerSymbol = null;
+  if (view !== "alpha") {
+    expandedAlphaSymbol = null;
+    alphaToggleToken += 1;
+  }
   currentView = view;
   document.body.dataset.view = view;
   localStorage.setItem("cc-view", view);

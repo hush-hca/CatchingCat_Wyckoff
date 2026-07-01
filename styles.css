@@ -155,6 +155,7 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .alpha-list { margin-top:10px;overflow-x:auto; }
 .alpha-row { width:100%;min-width:1080px;display:grid;grid-template-columns:42px minmax(120px,.75fr) minmax(235px,1.35fr) repeat(3,minmax(145px,1fr)) 72px;align-items:center;gap:12px;border:0;border-bottom:1px solid rgba(190,225,209,.08);background:transparent;color:var(--text);padding:13px 10px;text-align:left;cursor:pointer;transition:.18s; }
 .alpha-row:hover { background:rgba(72,229,155,.045); }
+.alpha-row.expanded { background:rgba(72,229,155,.065);border-bottom-color:rgba(72,229,155,.18); }
 .alpha-row.long { box-shadow:inset 2px 0 var(--mint); }
 .alpha-row.short { box-shadow:inset 2px 0 var(--danger); }
 .alpha-rank { color:#657c71;font:600 11px "DM Mono";text-align:center; }
@@ -174,6 +175,10 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .alpha-total strong { color:var(--mint);font:700 15px "DM Mono"; }
 .alpha-total small { color:#668076;font-size:10px; }
 .alpha-empty { color:#61786d;font-size:11px;text-align:center;padding:70px 20px; }
+.alpha-inline-shell { min-width:1080px;max-height:0;opacity:0;transform:translateY(-6px);overflow:hidden;border-bottom:1px solid transparent;transition:max-height .22s ease,opacity .18s ease,transform .22s ease,border-color .22s ease; }
+.alpha-inline-shell.open { max-height:520px;opacity:1;transform:translateY(0);border-bottom-color:rgba(72,229,155,.18); }
+.alpha-inline-mount { padding:10px 12px 14px; }
+body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(72,229,155,.22);background:#0b1813; }
 .journal-count { color:var(--mint);font:500 10px "DM Mono";padding:5px 7px;background:var(--mint-soft);border-radius:4px; }
 .journal-layout { display:grid;grid-template-columns:minmax(320px,.8fr) minmax(360px,1.2fr);gap:28px;margin-top:18px; }
 .journal-compose { border-right:1px solid var(--line);padding-right:28px; }
