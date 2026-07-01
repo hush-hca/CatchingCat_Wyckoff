@@ -754,7 +754,7 @@ async function analyzeAlphaAsset(asset) {
   const excluded = trend.excluded || proximity.excluded;
   const directionQualified = trend.macroDirection !== "ambiguous" && trend.score >= 30 && proximity.positionScore >= 4;
   const confirmed = directionQualified && total >= 70 && proximity.correctSide && proximity.slopeScore >= 2;
-  const targetTier = confirmed ? "confirmed" : directionQualified && total >= 55 ? "developing" : "none";
+  const targetTier = confirmed ? "confirmed" : directionQualified && total >= 50 ? "developing" : "none";
   const side = targetTier === "none" ? "neutral" : trend.macroDirection === "bullish" ? "long" : "short";
   const phaseLabel = side === "long"
     ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Accumulation Phase D (Target Long)`
