@@ -136,7 +136,7 @@
           <div class="panel-head">
             <div class="asset-title"><span class="coin-badge sui">S</span><div><span class="eyebrow">SELECTED SETUP</span><h2><span id="chartSymbol">SUI</span> / USDT <small>PERP</small></h2></div></div>
             <div class="chart-price"><strong id="chartPrice">$3.8421</strong><span class="up" id="chartChange">+8.42%</span></div>
-            <div class="timeframes"><button>1H</button><button class="active">4H</button><button>1D</button><button>1W</button></div>
+            <div class="timeframes"><button class="active">1H</button><button>4H</button><button>1D</button><button>1W</button></div>
           </div>
           <div class="chart-meta">
             <span id="chartStructure"><i class="meta-dot green"></i>Loading live structure…</span>
@@ -174,9 +174,9 @@
         <article class="panel alpha-panel" id="alphaPanel">
           <div class="panel-head alpha-head">
             <div>
-              <span class="eyebrow">PHASE D EXECUTION RADAR</span>
+              <span class="eyebrow">PHASE C/D STRUCTURE RADAR</span>
               <h2>Alpha Rank</h2>
-              <p class="muted">Phase D assets ranked by SMA200 trend clarity, Session VWAP proximity, and volume depletion.</p>
+              <p class="muted">200-candle Phase C/D structures ranked by SMA200 trend clarity, Session VWAP proximity, and volume depletion.</p>
             </div>
             <div class="alpha-actions">
               <span class="live-badge"><i></i> LIVE</span>
@@ -187,11 +187,11 @@
             <span><b>50</b> Trend clarity</span>
             <span><b>30</b> VWAP proximity</span>
             <span><b>20</b> Volume depletion</span>
-            <small id="alphaUpdated">Waiting for Phase D scan results</small>
+            <small id="alphaUpdated">Waiting for Phase C/D structure results</small>
           </div>
           <div class="alpha-status" id="alphaStatus">
             <span class="pulse"></span>
-            <div><strong>Preparing Alpha Rank</strong><small>Only scanner assets currently classified as Phase D are eligible.</small></div>
+            <div><strong>Preparing Alpha Rank</strong><small>200-candle Phase C Spring and Phase D breakout structures are eligible.</small></div>
           </div>
           <div class="alpha-list" id="alphaList"></div>
         </article>
@@ -255,7 +255,7 @@
               <article><b>1</b><span class="guide-icon">⚙</span><h4>기준 설정</h4><p><strong>Settings</strong>에서 Volume ignition threshold를 설정합니다. 처음에는 <em>2.0×</em>를 권장합니다.</p></article>
               <article><b>2</b><span class="guide-icon">◎</span><h4>후보 확인</h4><p><strong>Wyckoff Scanner</strong>에서 Phase, RVOL, 지지·저항을 함께 봅니다. 숫자 하나만 보고 진입하지 않습니다.</p></article>
               <article><b>3</b><span class="guide-icon">◇</span><h4>관심종목 고정</h4><p>종목 왼쪽의 <strong>◇</strong>를 눌러 Watchlist에 넣습니다. 장중에는 이 목록만 감시해 시야를 좁힙니다.</p></article>
-              <article><b>4</b><span class="guide-icon">α</span><h4>우선순위 확인</h4><p><strong>Alpha Rank</strong>에서 Phase D 후보의 추세, VWAP 근접도, 거래량 고갈 점수를 비교합니다.</p></article>
+              <article><b>4</b><span class="guide-icon">α</span><h4>우선순위 확인</h4><p><strong>Alpha Rank</strong>에서 200캔들 Phase C/D 후보의 추세, VWAP 근접도, 거래량 고갈 점수를 비교합니다.</p></article>
             </div>
           </section>
 
@@ -268,7 +268,7 @@
               <i>→</i>
               <button type="button" data-guide-view="watchlist"><b>3</b><span>Watchlist</span><small>후보만 집중 감시</small></button>
               <i>→</i>
-              <button type="button" data-guide-view="alpha"><b>4</b><span>Alpha Rank</span><small>Phase D 우선순위 확인</small></button>
+              <button type="button" data-guide-view="alpha"><b>4</b><span>Alpha Rank</span><small>Phase C/D 우선순위 확인</small></button>
               <i>→</i>
               <button type="button" data-guide-view="journal"><b>5</b><span>Journal</span><small>근거와 무효화 기록</small></button>
             </div>
@@ -291,7 +291,7 @@
                 <button type="button" data-guide-view="volume"><span>↗</span><div><strong>Volume Fire</strong><small>1분 RVOL이 큰 종목을 빠르게 발견</small></div></button>
                 <button type="button" data-guide-view="scanner"><span>◎</span><div><strong>Wyckoff Scanner</strong><small>구조·Phase·지지/저항을 비교</small></div></button>
                 <button type="button" data-guide-view="watchlist"><span>◇</span><div><strong>Watchlist</strong><small>내가 고른 종목만 집중 감시</small></div></button>
-                <button type="button" data-guide-view="alpha"><span>α</span><div><strong>Alpha Rank</strong><small>Phase D 롱·숏 후보를 점수순으로 정렬</small></div></button>
+                <button type="button" data-guide-view="alpha"><span>α</span><div><strong>Alpha Rank</strong><small>Phase C/D 구조 후보를 점수순으로 정렬</small></div></button>
                 <button type="button" data-guide-view="journal"><span>▤</span><div><strong>Decision Journal</strong><small>진입 근거와 무효화 조건을 로컬 저장</small></div></button>
               </div>
             </div>

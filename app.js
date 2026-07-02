@@ -8,13 +8,16 @@ const FALLBACK = [
 
 const QUALIFIED_UNIVERSE_SIZE = 184;
 const PRIORITY_ASSET_COUNT = 5;
+const STRUCTURE_INTERVAL = "1h";
+const STRUCTURE_CANDLE_LIMIT = 200;
+const STRUCTURE_CACHE_TTL = 5 * 60_000;
 
 const VIEW_COPY = {
   dashboard: ["Good evening, Operator.", "Read the structure. Follow the volume. Protect the downside."],
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
-  alpha: ["Alpha Rank", "Phase D opportunities ranked by trend clarity, VWAP precision, and volume depletion."],
+  alpha: ["Alpha Rank", "Confirmed Phase C/D structures ranked by trend clarity, VWAP precision, and volume depletion."],
   journal: ["Decision Journal", "Write the rule before the market gives you a story."],
   guide: ["How to use", "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다."]
 };
@@ -33,9 +36,12 @@ let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
 let journalEntries = readStorage("cc-journal", []);
 let expandedScannerSymbol = null;
 let scannerToggleToken = 0;
-let currentTimeframe = "4H";
+let currentTimeframe = "1H";
 let chartRequestToken = 0;
 const chartCache = new Map();
+let structureRunToken = 0;
+let structureAnalysisPromise = null;
+let structureProgress = { status: "idle", completed: 0, total: 0, failed: 0 };
 let alphaRankings = [];
 let alphaLoading = false;
 let alphaRunToken = 0;
@@ -75,8 +81,8 @@ function renderTickers() {
 function visibleAssets() {
   let list = currentView === "scanner" ? [...assets] : assets.slice(0, PRIORITY_ASSET_COUNT);
   if (currentView === "watchlist") list = assets.filter(asset => watchlist.includes(asset.symbol));
-  if (currentFilter === "accumulation") list = list.filter(asset => ["A", "B"].includes(asset.phase));
-  if (currentFilter === "breakouts") list = list.filter(asset => ["C", "D"].includes(asset.phase));
+  if (currentFilter === "accumulation") list = list.filter(asset => asset.structure === "accumulation");
+  if (currentFilter === "breakouts") list = list.filter(asset => ["C", "D", "E"].includes(asset.phase));
   if (sortRules.length) {
     list = list
       .map((asset, originalIndex) => ({ asset, originalIndex }))
@@ -145,12 +151,12 @@ function buildQualifiedUniverse(rows) {
     const low = Number(row.lowPrice) || price * 0.92;
     const high = Number(row.highPrice) || price * 1.08;
     const rangePosition = high > low ? (price - low) / (high - low) : 0.5;
-    const phase = rangePosition < 0.25 ? "A" : rangePosition < 0.5 ? "B" : rangePosition < 0.72 ? "C" : "D";
+    const phase = rangePosition < 0.15 ? "C" : rangePosition >= 0.72 ? "D" : rangePosition < 0.36 ? "A" : "B";
     const phaseCopy = {
-      A: ["Selling climax", "Base forming"],
-      B: ["Building cause", "Accumulating"],
-      C: ["Spring / test", "Test forming"],
-      D: ["Sign of strength", "Breakout watch"]
+      A: ["Provisional range", "Structure loading"],
+      B: ["Provisional range", "Structure loading"],
+      C: ["Potential spring zone", "Awaiting 200-candle confirmation"],
+      D: ["Potential breakout zone", "Awaiting 200-candle confirmation"]
     };
     const rankBoost = 2 * (1 - Math.min(index, QUALIFIED_UNIVERSE_SIZE - 1) / QUALIFIED_UNIVERSE_SIZE);
     const rvol = Math.min(6.8, Math.max(1.1, 1.5 + rankBoost + Math.min(Math.abs(change) / 8, 1.5)));
@@ -163,6 +169,9 @@ function buildQualifiedUniverse(rows) {
       phase,
       phaseLabel: phaseCopy[phase][0],
       signal: phaseCopy[phase][1],
+      phaseSource: "proximity",
+      structure: "unknown",
+      rangePosition,
       support: low,
       resistance: high
     };
@@ -194,6 +203,11 @@ function updateUniverseFilterStatus(stats = lastUniverseFilterStats) {
   status.textContent = korean
     ? `키리스 필터 · ${stats.excluded}개 제외`
     : `Keyless filter · ${stats.excluded} excluded`;
+  if (structureProgress.status === "loading") {
+    status.textContent += ` · ${korean ? "구조" : "structure"} ${structureProgress.completed}/${structureProgress.total}`;
+  } else if (structureProgress.status === "ready") {
+    status.textContent += ` · ${korean ? "200캔들 분석 완료" : "200-candle scan ready"}`;
+  }
   status.dataset.domesticExcluded = stats.domesticSymbols.join(",");
   status.title = korean
     ? `수동 ${stats.manual} · 상장 조건 ${stats.listing} · 국내 비중 40% 이상 ${stats.domestic}${stats.domesticSymbols.length ? ` (${stats.domesticSymbols.join(", ")})` : ""}${partial ? ` · 일부 피드 실패: ${stats.warnings.join(", ")}` : ""}`
@@ -212,6 +226,8 @@ function renderRows(openInlineChart = true) {
   qs("#watchlistEmpty").style.display = empty ? "flex" : "none";
   qs("#opportunityRows").innerHTML = rows.map((asset, index) => {
     const watched = watchlist.includes(asset.symbol);
+    const structureLabel = asset.structure === "distribution" ? "DIST" : asset.structure === "accumulation" ? "ACC" : "PREFILTER";
+    const structureClass = asset.structure === "distribution" ? "distribution" : asset.structure === "accumulation" ? "accumulation" : "provisional";
     const assetRow = `
       <tr data-symbol="${asset.symbol}" class="${selected.symbol === asset.symbol ? "selected" : ""}" aria-expanded="${currentView === "scanner" && expandedScannerSymbol === asset.symbol}">
         <td><div class="asset-cell">
@@ -221,7 +237,7 @@ function renderRows(openInlineChart = true) {
         </div></td>
         <td><div class="price-cell"><strong>${fmt(asset.price)}</strong><span class="${asset.change >= 0 ? "up" : "down"}">${asset.change >= 0 ? "+" : ""}${asset.change.toFixed(2)}%</span></div></td>
         <td><span class="rvol">${asset.rvol.toFixed(1)}×</span><div class="rvol-bar"><i style="width:${Math.min(asset.rvol / 5 * 100, 100)}%"></i></div></td>
-        <td><span class="phase-pill phase-${asset.phase.toLowerCase()}">PHASE ${asset.phase}</span><small style="display:block;color:#697e74;margin-top:3px;font-size:10px">${asset.phaseLabel}</small></td>
+        <td><span class="phase-pill phase-${asset.phase.toLowerCase()} ${structureClass}">${structureLabel} · PHASE ${asset.phase}</span><small style="display:block;color:#697e74;margin-top:3px;font-size:10px">${asset.phaseLabel}${asset.phaseSource === "structure" ? ` · ${asset.confidence}%` : ""}</small></td>
         <td><span class="signal-pill ${index === 0 ? "signal-spring" : index === 1 ? "signal-watch" : ""}">${asset.signal}</span></td>
         <td class="row-arrow">›</td>
       </tr>`;
@@ -282,20 +298,12 @@ function renderFire() {
   });
 }
 
-const PHASE_META = {
-  A: { label: "Stopping action", signal: "Base forming" },
-  B: { label: "Building cause", signal: "Accumulating" },
-  C: { label: "Spring / test", signal: "Test forming" },
-  D: { label: "Sign of strength", signal: "Breakout watch" },
-  E: { label: "Markup trend", signal: "Trend active" }
-};
-
 function percentile(values, ratio) {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.min(sorted.length - 1, Math.max(0, Math.floor((sorted.length - 1) * ratio)))];
 }
 
-function buildPhaseLabels(candles, phase, events = {}) {
+function buildPhaseLabels(candles, phase, events = {}, structure = "accumulation") {
   const labels = [];
   const addLabel = (index, text, dy) => {
     if (Number.isInteger(index) && index >= 0 && index < candles.length && !labels.some(label => label.index === index)) {
@@ -304,78 +312,148 @@ function buildPhaseLabels(candles, phase, events = {}) {
   };
 
   if (["A", "B", "C"].includes(phase)) {
-    addLabel(events.preliminarySupportIndex, "PS", -12);
-    addLabel(events.sellingClimaxIndex, "SC", 18);
+    addLabel(events.preliminarySupportIndex, structure === "distribution" ? "PSY" : "PS", -12);
+    addLabel(events.climaxIndex, structure === "distribution" ? "BC" : "SC", structure === "distribution" ? -16 : 18);
     addLabel(events.automaticRallyIndex, "AR", -15);
   }
   if (["B", "C"].includes(phase)) addLabel(events.secondaryTestIndex, "ST", 18);
-  if (phase === "C" && events.springIndex >= 0) {
-    addLabel(events.springIndex, "SPRING", 20);
-    addLabel(Math.min(candles.length - 1, events.springIndex + 3), "TEST", 18);
+  const phaseCIndex = structure === "distribution" ? events.upthrustIndex : events.springIndex;
+  if (phase === "C" && phaseCIndex >= 0) {
+    addLabel(phaseCIndex, structure === "distribution" ? "UTAD" : "SPRING", structure === "distribution" ? -18 : 20);
+    addLabel(Math.min(candles.length - 1, phaseCIndex + 3), "TEST", structure === "distribution" ? -16 : 18);
   }
-  if (["D", "E"].includes(phase) && events.breakoutIndex >= 0) {
-    addLabel(events.breakoutIndex, "SOS", -16);
-    addLabel(Math.min(candles.length - 1, events.breakoutIndex + 3), "LPS", 18);
+  const phaseDIndex = structure === "distribution" ? events.breakdownIndex : events.breakoutIndex;
+  if (["D", "E"].includes(phase) && phaseDIndex >= 0) {
+    addLabel(phaseDIndex, structure === "distribution" ? "SOW" : "SOS", structure === "distribution" ? 18 : -16);
+    addLabel(Math.min(candles.length - 1, phaseDIndex + 3), structure === "distribution" ? "LPSY" : "LPS", structure === "distribution" ? -16 : 18);
   }
-  if (phase === "E") addLabel(candles.length - 3, "MARKUP", -16);
+  if (phase === "E") addLabel(candles.length - 3, structure === "distribution" ? "MARKDOWN" : "MARKUP", structure === "distribution" ? 18 : -16);
 
   return labels.sort((a, b) => a.index - b.index);
 }
 
 function estimateWyckoffPhase(candles) {
-  const referenceEnd = Math.max(18, candles.length - 12);
+  const referenceEnd = Math.max(120, candles.length - 40);
   const reference = candles.slice(0, referenceEnd);
-  const support = percentile(reference.map(candle => candle.low), 0.08);
-  const resistance = percentile(reference.map(candle => candle.high), 0.92);
+  const support = percentile(reference.map(candle => candle.low), 0.1);
+  const resistance = percentile(reference.map(candle => candle.high), 0.9);
   const last = candles.at(-1);
   const searchStart = referenceEnd;
   let springIndex = -1;
+  let upthrustIndex = -1;
   let breakoutIndex = -1;
+  let breakdownIndex = -1;
+  const average = values => values.reduce((sum, value) => sum + value, 0) / Math.max(values.length, 1);
+  const ranges = reference.slice(-40).map(candle => candle.high - candle.low);
+  const averageRange = average(ranges);
+  const structureRange = Math.max(resistance - support, last.close * 0.001);
+  const eventBuffer = Math.max(last.close * 0.0025, averageRange * 0.35, structureRange * 0.012);
 
   for (let index = searchStart; index < candles.length; index += 1) {
-    if (springIndex < 0 && candles[index].low < support * 0.995 && candles[index].close > support) springIndex = index;
-    if (breakoutIndex < 0 && candles[index].close > resistance * 1.005) breakoutIndex = index;
+    const candle = candles[index];
+    const bodyLow = Math.min(candle.open, candle.close);
+    const bodyHigh = Math.max(candle.open, candle.close);
+    const lowerWick = bodyLow - candle.low;
+    const upperWick = candle.high - bodyHigh;
+    if (candle.low < support - eventBuffer && candle.close > support && lowerWick > Math.abs(candle.close - candle.open) * 0.45) springIndex = index;
+    if (candle.high > resistance + eventBuffer && candle.close < resistance && upperWick > Math.abs(candle.close - candle.open) * 0.45) upthrustIndex = index;
+    if (candle.close > resistance + eventBuffer * 0.5) breakoutIndex = index;
+    if (candle.close < support - eventBuffer * 0.5) breakdownIndex = index;
   }
 
   const recentCloses = candles.slice(-5).map(candle => candle.close);
   const sustainedBreakout = breakoutIndex >= 0 && recentCloses.filter(close => close > resistance).length >= 4;
-  const tenBarsAgo = candles[Math.max(0, candles.length - 11)].close;
-  const slope = tenBarsAgo ? (last.close - tenBarsAgo) / tenBarsAgo : 0;
+  const sustainedBreakdown = breakdownIndex >= 0 && recentCloses.filter(close => close < support).length >= 4;
+  const twentyBarsAgo = candles[Math.max(0, candles.length - 21)].close;
+  const momentum = twentyBarsAgo ? (last.close - twentyBarsAgo) / twentyBarsAgo : 0;
   const rangePosition = resistance > support ? (last.close - support) / (resistance - support) : 0.5;
+  const earlyMean = average(reference.slice(0, 20).map(candle => candle.close));
+  const lateMean = average(reference.slice(-20).map(candle => candle.close));
+  const priorTrend = earlyMean ? (lateMean - earlyMean) / earlyMean : 0;
+  const bullishEventIndex = Math.max(springIndex, breakoutIndex);
+  const bearishEventIndex = Math.max(upthrustIndex, breakdownIndex);
+  const structure = bullishEventIndex >= 0 || bearishEventIndex >= 0
+    ? bullishEventIndex > bearishEventIndex ? "accumulation" : "distribution"
+    : priorTrend <= 0 ? "accumulation" : "distribution";
+  const recentRangeAcceptance = candles.slice(-40).filter(candle =>
+    candle.close >= support - eventBuffer && candle.close <= resistance + eventBuffer
+  ).length / Math.min(40, candles.length);
+
   let phase = "B";
-  if (sustainedBreakout && slope > 0.025) phase = "E";
-  else if (breakoutIndex >= 0 && last.close > resistance * 0.995) phase = "D";
-  else if (springIndex >= 0 && last.close > support) phase = "C";
-  else if (rangePosition < 0.28 && slope < 0.02) phase = "A";
+  if (structure === "accumulation") {
+    if (sustainedBreakout && momentum > 0.025) phase = "E";
+    else if (breakoutIndex >= 0 && last.close >= resistance - eventBuffer) phase = "D";
+    else if (springIndex >= 0 && last.close > support) phase = "C";
+    else if (recentRangeAcceptance < 0.55 || (rangePosition < 0.28 && momentum < 0.02)) phase = "A";
+  } else {
+    if (sustainedBreakdown && momentum < -0.025) phase = "E";
+    else if (breakdownIndex >= 0 && last.close <= support + eventBuffer) phase = "D";
+    else if (upthrustIndex >= 0 && last.close < resistance) phase = "C";
+    else if (recentRangeAcceptance < 0.55 || (rangePosition > 0.72 && momentum > -0.02)) phase = "A";
+  }
 
   const firstHalf = candles.slice(0, referenceEnd);
-  const sellingClimaxIndex = firstHalf.reduce((lowest, candle, index) =>
-    candle.low < firstHalf[lowest].low ? index : lowest, 0);
-  const preliminarySupportIndex = Math.max(1, sellingClimaxIndex - 5);
-  const rallyWindow = candles.slice(sellingClimaxIndex + 1, Math.min(referenceEnd, sellingClimaxIndex + 14));
+  const climaxIndex = firstHalf.reduce((extreme, candle, index) =>
+    structure === "distribution"
+      ? candle.high > firstHalf[extreme].high ? index : extreme
+      : candle.low < firstHalf[extreme].low ? index : extreme, 0);
+  const preliminarySupportIndex = Math.max(1, climaxIndex - 5);
+  const rallyWindow = candles.slice(climaxIndex + 1, Math.min(referenceEnd, climaxIndex + 14));
   const automaticRallyIndex = rallyWindow.length
-    ? sellingClimaxIndex + 1 + rallyWindow.reduce((highest, candle, index) => candle.high > rallyWindow[highest].high ? index : highest, 0)
-    : Math.min(candles.length - 1, sellingClimaxIndex + 5);
+    ? climaxIndex + 1 + rallyWindow.reduce((extreme, candle, index) =>
+      structure === "distribution"
+        ? candle.low < rallyWindow[extreme].low ? index : extreme
+        : candle.high > rallyWindow[extreme].high ? index : extreme, 0)
+    : Math.min(candles.length - 1, climaxIndex + 5);
   const secondaryTestIndex = Math.min(referenceEnd - 1, automaticRallyIndex + 6);
   const events = {
     preliminarySupportIndex,
-    sellingClimaxIndex,
+    climaxIndex,
     automaticRallyIndex,
     secondaryTestIndex,
     springIndex,
-    breakoutIndex
+    upthrustIndex,
+    breakoutIndex,
+    breakdownIndex
   };
 
-  return { phase, support, resistance, events, labels: buildPhaseLabels(candles, phase, events) };
+  const phaseNames = structure === "distribution"
+    ? { A: "Stopping demand", B: "Building supply", C: "Upthrust / test", D: "Sign of weakness", E: "Markdown trend" }
+    : { A: "Stopping action", B: "Building cause", C: "Spring / test", D: "Sign of strength", E: "Markup trend" };
+  const signalNames = structure === "distribution"
+    ? { A: "Range forming", B: "Distribution range", C: "Upthrust confirmed", D: "Breakdown confirmed", E: "Markdown active" }
+    : { A: "Range forming", B: "Accumulation range", C: "Spring confirmed", D: "Breakout confirmed", E: "Markup active" };
+  const eventCount = [springIndex, upthrustIndex, breakoutIndex, breakdownIndex].filter(index => index >= 0).length;
+  const confidence = Math.min(100, Math.round(35 + recentRangeAcceptance * 25 + eventCount * 15 + Math.min(10, Math.abs(momentum) * 200)));
+
+  return {
+    phase,
+    structure,
+    phaseLabel: phaseNames[phase],
+    signal: signalNames[phase],
+    confidence,
+    support,
+    resistance,
+    rangePosition,
+    momentum,
+    priorTrend,
+    events,
+    labels: buildPhaseLabels(candles, phase, events, structure)
+  };
 }
 
-function renderPhaseTrack(phase) {
+function renderPhaseTrack(phase, structure = selected?.structure || "accumulation") {
   const phases = ["A", "B", "C", "D", "E"];
+  const phaseLabels = structure === "distribution"
+    ? ["Stopping demand", "Building supply", "Upthrust / test", "Sign of weakness", "Markdown trend"]
+    : ["Stopping action", "Building cause", "Spring / test", "Sign of strength", "Markup trend"];
   const currentIndex = phases.indexOf(phase);
   qsa(".phase-track [data-phase]").forEach(item => {
     const index = phases.indexOf(item.dataset.phase);
     item.classList.toggle("done", index < currentIndex);
     item.classList.toggle("current", index === currentIndex);
+    const detail = item.querySelector("small");
+    if (detail) detail.textContent = phaseLabels[index];
   });
 }
 
@@ -418,7 +496,9 @@ function renderChart(candles, estimate) {
     ${estimate.labels.map(label => {
       const candle = candles[label.index];
       const labelY = label.dy > 0 ? y(candle.low) : y(candle.high);
-      const accent = label.text === "SPRING" ? "#ff8d55" : label.text === "SOS" ? "#48e59b" : "#789085";
+      const accent = ["UTAD", "SOW", "LPSY", "MARKDOWN"].includes(label.text)
+        ? "#ff6868"
+        : label.text === "SPRING" ? "#ff8d55" : ["SOS", "LPS", "MARKUP"].includes(label.text) ? "#48e59b" : "#789085";
       return `<circle cx="${x(label.index)}" cy="${labelY}" r="2.7" fill="#07100d" stroke="${accent}"/><text x="${x(label.index)}" y="${labelY + label.dy}" text-anchor="middle" fill="${accent}">${label.text}</text>`;
     }).join("")}
     <line x1="${x(candles.length - 1)}" y1="${y(last.close)}" x2="${W - pad}" y2="${y(last.close)}" stroke="#48e59b" stroke-opacity=".55" stroke-dasharray="2 3"/>
@@ -430,58 +510,38 @@ async function loadSelectedChart() {
   const symbol = selected.symbol;
   const timeframe = currentTimeframe;
   const interval = { "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" }[timeframe];
-  const cacheKey = `${symbol}:${interval}`;
   const requestToken = ++chartRequestToken;
-  const cached = chartCache.get(cacheKey);
   qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Loading ${timeframe} live structure…`, `${timeframe} 실시간 구조 로딩 중…`)}`;
   renderChartState(chartCopy("Loading real-time candles…", "실시간 캔들 로딩 중…"));
 
   try {
-    let payload = cached;
-    if (!payload || Date.now() - payload.fetchedAt > 60_000) {
-      const response = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}USDT&interval=${interval}&limit=200`, { signal: AbortSignal.timeout(6000) });
-      if (!response.ok) throw new Error("candles unavailable");
-      const rows = await response.json();
-      const candles = rows.map(row => ({
-        time: Number(row[0]),
-        open: Number(row[1]),
-        high: Number(row[2]),
-        low: Number(row[3]),
-        close: Number(row[4]),
-        volume: Number(row[5])
-      })).filter(candle => [candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite));
-      if (candles.length < 30) throw new Error("insufficient candles");
-      payload = { candles, estimate: estimateWyckoffPhase(candles), fetchedAt: Date.now() };
-      chartCache.set(cacheKey, payload);
-    }
+    const payload = await getStructurePayload(symbol, interval, 60_000);
     if (requestToken !== chartRequestToken || selected.symbol !== symbol || currentTimeframe !== timeframe) return;
 
-    const chartPhase = selected.phase;
-    const meta = PHASE_META[chartPhase];
-    const chartEstimate = {
-      ...payload.estimate,
-      phase: chartPhase,
-      labels: buildPhaseLabels(payload.candles, chartPhase, payload.estimate.events)
-    };
-    Object.assign(selected, {
-      price: payload.candles.at(-1).close,
-      support: payload.estimate.support,
-      resistance: payload.estimate.resistance
-    });
+    const chartEstimate = payload.estimate;
+    const chartPhase = chartEstimate.phase;
+    if (interval === STRUCTURE_INTERVAL) applyStructureEstimate(selected, payload);
+    selected.price = payload.candles.at(-1).close;
+    selected.support = chartEstimate.support;
+    selected.resistance = chartEstimate.resistance;
     const scrollTop = window.scrollY;
     const scrollLeft = window.scrollX;
     qs("#chartPrice").textContent = fmt(selected.price);
     qs("#supportPrice").textContent = fmt(selected.support);
     qs("#resistancePrice").textContent = fmt(selected.resistance);
-    qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Scanner Phase ${chartPhase} · ${meta.label} · live ${timeframe}`, `스캐너 Phase ${chartPhase} · ${window.I18N?.tr(meta.label) || meta.label} · 실시간 ${timeframe}`)}`;
-    renderPhaseTrack(chartPhase);
+    const structureName = chartEstimate.structure === "distribution"
+      ? chartCopy("Distribution", "분산")
+      : chartCopy("Accumulation", "매집");
+    const dotClass = chartEstimate.structure === "distribution" ? "danger" : "green";
+    qs("#chartStructure").innerHTML = `<i class="meta-dot ${dotClass}"></i>${structureName} · Phase ${chartPhase} · ${chartEstimate.phaseLabel} · ${timeframe} / 200`;
+    renderPhaseTrack(chartPhase, chartEstimate.structure);
     updateJournalSetup();
     renderChart(payload.candles, chartEstimate);
     restoreScrollPosition(scrollTop, scrollLeft);
   } catch {
     if (requestToken !== chartRequestToken || selected.symbol !== symbol) return;
     qs("#chartStructure").innerHTML = `<i class="meta-dot warning"></i>${chartCopy(`Live ${timeframe} structure unavailable`, `실시간 ${timeframe} 구조를 불러올 수 없음`)}`;
-    renderPhaseTrack(selected.phase);
+    renderPhaseTrack(selected.phase, selected.structure);
     renderChartState(chartCopy("Real-time candles unavailable", "실시간 캔들을 불러올 수 없습니다"));
   }
 }
@@ -497,7 +557,7 @@ function selectAsset(symbol, shouldRenderRows = true) {
   qs("#chartRvol").textContent = `${selected.rvol.toFixed(1)}×`;
   updateJournalSetup();
   if (shouldRenderRows) renderRows();
-  renderPhaseTrack(selected.phase);
+  renderPhaseTrack(selected.phase, selected.structure);
   loadSelectedChart();
 }
 
@@ -557,6 +617,71 @@ async function fetchPublicKlines(symbol, interval, limit, startTime) {
   })).filter(candle => [candle.time, candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite));
   if (candles.length < Math.min(limit, 20)) throw new Error(`${symbol} ${interval} insufficient`);
   return candles;
+}
+
+async function getStructurePayload(symbol, interval = STRUCTURE_INTERVAL, maxAge = STRUCTURE_CACHE_TTL) {
+  const cacheKey = `${symbol}:${interval}`;
+  const cached = chartCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt <= maxAge) return cached;
+  const candles = await fetchPublicKlines(symbol, interval, STRUCTURE_CANDLE_LIMIT);
+  const payload = {
+    candles,
+    estimate: estimateWyckoffPhase(candles),
+    fetchedAt: Date.now()
+  };
+  chartCache.set(cacheKey, payload);
+  return payload;
+}
+
+function applyStructureEstimate(asset, payload) {
+  const estimate = payload.estimate;
+  Object.assign(asset, {
+    phase: estimate.phase,
+    phaseLabel: estimate.phaseLabel,
+    signal: estimate.signal,
+    structure: estimate.structure,
+    confidence: estimate.confidence,
+    support: estimate.support,
+    resistance: estimate.resistance,
+    phaseSource: "structure",
+    structureAnalyzedAt: payload.fetchedAt
+  });
+  return asset;
+}
+
+async function analyzeUniverseStructures(targetAssets) {
+  const token = ++structureRunToken;
+  structureProgress = { status: "loading", completed: 0, total: targetAssets.length, failed: 0 };
+  updateUniverseFilterStatus();
+  const results = await mapWithConcurrency(targetAssets, 8, async asset => ({
+    symbol: asset.symbol,
+    payload: await getStructurePayload(asset.symbol)
+  }), (completed, total) => {
+    if (token !== structureRunToken) return;
+    structureProgress = { ...structureProgress, completed, total };
+    if (completed === total || completed % 8 === 0) updateUniverseFilterStatus();
+  });
+  if (token !== structureRunToken) return;
+
+  let failed = 0;
+  results.forEach(result => {
+    if (!result || result.error || !result.payload) {
+      failed += 1;
+      return;
+    }
+    const asset = assets.find(item => item.symbol === result.symbol);
+    if (asset) applyStructureEstimate(asset, result.payload);
+  });
+  structureProgress = {
+    status: "ready",
+    completed: targetAssets.length,
+    total: targetAssets.length,
+    failed
+  };
+  selected = assets.find(asset => asset.symbol === selected.symbol) || assets[0];
+  updateUniverseFilterStatus();
+  renderRows();
+  renderTickers();
 }
 
 function simpleMovingAverage(candles, period = 200, offset = 0) {
@@ -748,19 +873,22 @@ async function analyzeAlphaAsset(asset) {
   }
 
   const trend = scoreTrendClarity(price, averages, vwap);
-  const proximity = scoreVwapConvergence(price, vwap, trend.macroDirection);
+  const structureDirection = asset.structure === "distribution" ? "bearish" : "bullish";
+  const proximity = scoreVwapConvergence(price, vwap, structureDirection);
   const depletion = scoreVolumeDepletion(session, proximity.distanceBps);
-  const total = trend.score + proximity.score + depletion.score;
-  const excluded = trend.excluded || proximity.excluded;
-  const directionQualified = trend.macroDirection !== "ambiguous" && trend.score >= 30 && proximity.positionScore >= 4;
+  const structureConflict = trend.macroDirection !== "ambiguous" && trend.macroDirection !== structureDirection;
+  const conflictPenalty = structureConflict ? 25 : 0;
+  const total = Math.max(0, trend.score + proximity.score + depletion.score - conflictPenalty);
+  const directionQualified = !structureConflict && trend.macroDirection !== "ambiguous" && trend.score >= 30 && proximity.positionScore >= 4;
   const confirmed = directionQualified && total >= 70 && proximity.correctSide && proximity.slopeScore >= 2;
   const targetTier = confirmed ? "confirmed" : directionQualified && total >= 50 ? "developing" : "none";
-  const side = targetTier === "none" ? "neutral" : trend.macroDirection === "bullish" ? "long" : "short";
+  const side = asset.structure === "distribution" ? "short" : "long";
 
   return {
     symbol: asset.symbol,
     name: asset.name,
     phase: asset.phase,
+    structure: asset.structure,
     price,
     averages,
     vwap,
@@ -768,7 +896,9 @@ async function analyzeAlphaAsset(asset) {
     proximity,
     depletion,
     total,
-    excluded,
+    excluded: false,
+    structureConflict,
+    conflictPenalty,
     targetTier,
     side
   };
@@ -805,8 +935,8 @@ function renderAlphaRank(openInlineChart = true) {
   }
   if (!alphaRankings.length) {
     list.innerHTML = alphaLoading ? "" : `<div class="alpha-empty">${alphaCopy(
-      "No analyzed Phase D assets are available yet.",
-      "분석 가능한 Phase D 종목이 아직 없습니다."
+      "No analyzed Phase C/D structures are available yet.",
+      "분석 가능한 Phase C/D 구조가 아직 없습니다."
     )}</div>`;
     return;
   }
@@ -886,7 +1016,6 @@ function toggleAlphaChart(symbol) {
 
 async function refreshAlphaRank() {
   if (alphaLoading) return;
-  const candidates = assets.filter(asset => asset.phase === "D").map(asset => ({ ...asset }));
   const status = qs("#alphaStatus");
   const updated = qs("#alphaUpdated");
   const token = ++alphaRunToken;
@@ -895,16 +1024,24 @@ async function refreshAlphaRank() {
   alphaLoading = true;
   alphaRankings = [];
   renderAlphaRank();
+  if (structureAnalysisPromise) {
+    status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Waiting for 200-candle structures", "200캔들 구조 분석 대기 중")}</strong><small>${structureProgress.completed} / ${structureProgress.total}</small></div>`;
+    await structureAnalysisPromise;
+    if (token !== alphaRunToken) return;
+  }
+  const candidates = assets
+    .filter(asset => asset.phaseSource === "structure" && ["C", "D"].includes(asset.phase))
+    .map(asset => ({ ...asset }));
 
   if (!candidates.length) {
     alphaLoading = false;
-    status.innerHTML = `<span>○</span><div><strong>${alphaCopy("No Phase D candidates", "Phase D 후보 없음")}</strong><small>${alphaCopy("The current scanner snapshot contains no eligible assets.", "현재 스캐너 결과에 대상 종목이 없습니다.")}</small></div>`;
+    status.innerHTML = `<span>○</span><div><strong>${alphaCopy("No confirmed Phase C/D structures", "확인된 Phase C/D 구조 없음")}</strong><small>${alphaCopy("No 200-candle Spring, Upthrust, breakout, or breakdown is active.", "활성화된 200캔들 Spring, Upthrust, 돌파 또는 이탈 구조가 없습니다.")}</small></div>`;
     updated.textContent = alphaCopy("0 eligible assets", "대상 0개");
     renderAlphaRank();
     return;
   }
 
-  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Phase D candidates", "Phase D 후보 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
+  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing structural Phase C/D candidates", "구조 기반 Phase C/D 후보 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
   updated.textContent = alphaCopy(`${candidates.length} eligible assets`, `대상 ${candidates.length}개`);
 
   const results = await mapWithConcurrency(candidates, 6, analyzeAlphaAsset, (completed, total) => {
@@ -915,14 +1052,14 @@ async function refreshAlphaRank() {
   if (token !== alphaRunToken) return;
 
   const failed = results.filter(result => result?.error).length;
-  const excluded = results.filter(result => result?.excluded).length;
+  const conflicts = results.filter(result => result?.structureConflict).length;
   alphaRankings = results
-    .filter(result => result && !result.error && !result.excluded)
+    .filter(result => result && !result.error)
     .sort((left, right) => right.total - left.total || right.trend.score - left.trend.score || left.proximity.distanceBps - right.proximity.distanceBps);
   alphaLoading = false;
   status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Ranking live", "실시간 순위 완료")}</strong><small>${alphaCopy(
-    `${alphaRankings.length} ranked${excluded ? ` · ${excluded} conflicts excluded` : ""}${failed ? ` · ${failed} unavailable` : ""}`,
-    `${alphaRankings.length}개 순위${excluded ? ` · 충돌 ${excluded}개 제외` : ""}${failed ? ` · ${failed}개 데이터 실패` : ""}`
+    `${alphaRankings.length} ranked${conflicts ? ` · ${conflicts} conflicts penalized` : ""}${failed ? ` · ${failed} unavailable` : ""}`,
+    `${alphaRankings.length}개 순위${conflicts ? ` · 충돌 ${conflicts}개 감점` : ""}${failed ? ` · ${failed}개 데이터 실패` : ""}`
   )}</small></div>`;
   updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   renderAlphaRank();
@@ -984,6 +1121,7 @@ function renderJournal() {
 }
 
 async function refreshLiveData() {
+  if (structureAnalysisPromise) return;
   try {
     const response = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr", { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error("feed unavailable");
@@ -1022,6 +1160,12 @@ async function refreshLiveData() {
     qs("#feedStatus").textContent = "Binance live";
     qs(".pulse").style.background = "#48e59b";
     renderAll();
+    structureAnalysisPromise = analyzeUniverseStructures(assets);
+    try {
+      await structureAnalysisPromise;
+    } finally {
+      structureAnalysisPromise = null;
+    }
   } catch {
     qs("#universeCount").textContent = assets.length;
     const status = qs("#universeFilterStatus");
