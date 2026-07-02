@@ -207,6 +207,7 @@ function updateUniverseFilterStatus(stats = lastUniverseFilterStats) {
     status.textContent += ` · ${korean ? "구조" : "structure"} ${structureProgress.completed}/${structureProgress.total}`;
   } else if (structureProgress.status === "ready") {
     status.textContent += ` · ${korean ? "200캔들 분석 완료" : "200-candle scan ready"}`;
+    if (structureProgress.failed) status.textContent += ` · ${structureProgress.failed} ${korean ? "개 데이터 부족 제외" : "insufficient excluded"}`;
   }
   status.dataset.domesticExcluded = stats.domesticSymbols.join(",");
   status.title = korean
@@ -664,14 +665,17 @@ async function analyzeUniverseStructures(targetAssets) {
   if (token !== structureRunToken) return;
 
   let failed = 0;
+  const failedSymbols = new Set();
   results.forEach(result => {
     if (!result || result.error || !result.payload) {
       failed += 1;
+      if (result?.symbol) failedSymbols.add(result.symbol);
       return;
     }
     const asset = assets.find(item => item.symbol === result.symbol);
     if (asset) applyStructureEstimate(asset, result.payload);
   });
+  if (failedSymbols.size) assets = assets.filter(asset => !failedSymbols.has(asset.symbol));
   structureProgress = {
     status: "ready",
     completed: targetAssets.length,
@@ -679,6 +683,7 @@ async function analyzeUniverseStructures(targetAssets) {
     failed
   };
   selected = assets.find(asset => asset.symbol === selected.symbol) || assets[0];
+  qs("#universeCount").textContent = assets.length;
   updateUniverseFilterStatus();
   renderRows();
   renderTickers();
