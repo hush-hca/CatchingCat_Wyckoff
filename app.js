@@ -757,10 +757,10 @@ async function analyzeAlphaAsset(asset) {
   const targetTier = confirmed ? "confirmed" : directionQualified && total >= 50 ? "developing" : "none";
   const side = targetTier === "none" ? "neutral" : trend.macroDirection === "bullish" ? "long" : "short";
   const phaseLabel = side === "long"
-    ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Accumulation Phase D (Target Long)`
+    ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Long`
     : side === "short"
-      ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Distribution Phase D (Target Short)`
-      : "Phase D (No clear target)";
+      ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Short`
+      : "No target";
 
   return {
     symbol: asset.symbol,
@@ -820,12 +820,18 @@ function renderAlphaRank(openInlineChart = true) {
     const phaseLabel = alphaCopy(
       item.phaseLabel,
       item.side === "long"
-        ? `${item.targetTier === "confirmed" ? "확정" : "형성 중"} 매집 Phase D (롱 후보)`
+        ? `${item.targetTier === "confirmed" ? "확정" : "형성 중"} 롱`
         : item.side === "short"
-          ? `${item.targetTier === "confirmed" ? "확정" : "형성 중"} 분산 Phase D (숏 후보)`
-          : "Phase D (방향 불명확)"
+          ? `${item.targetTier === "confirmed" ? "확정" : "형성 중"} 숏`
+          : "방향 없음"
     );
-    const trendLabel = alphaCopy(item.trend.label, item.trend.labelKo);
+    const trendLabel = item.trend.alignmentScore === 30
+      ? alphaCopy("Full alignment", "완전 정렬")
+      : item.trend.alignmentScore === 22
+        ? alphaCopy("Partial alignment", "부분 정렬")
+        : item.trend.alignmentScore === 14
+          ? alphaCopy("SMA200-side bias", "SMA200 방향 우위")
+          : alphaCopy("Mixed", "혼조");
     const alignmentText = direction => direction === "bullish"
       ? "P > S100 > S200"
       : direction === "bearish"
