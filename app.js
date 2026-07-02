@@ -756,15 +756,11 @@ async function analyzeAlphaAsset(asset) {
   const confirmed = directionQualified && total >= 70 && proximity.correctSide && proximity.slopeScore >= 2;
   const targetTier = confirmed ? "confirmed" : directionQualified && total >= 50 ? "developing" : "none";
   const side = targetTier === "none" ? "neutral" : trend.macroDirection === "bullish" ? "long" : "short";
-  const phaseLabel = side === "long"
-    ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Long`
-    : side === "short"
-      ? `${targetTier === "confirmed" ? "Confirmed" : "Developing"} Short`
-      : "No target";
 
   return {
     symbol: asset.symbol,
     name: asset.name,
+    phase: asset.phase,
     price,
     averages,
     vwap,
@@ -774,8 +770,7 @@ async function analyzeAlphaAsset(asset) {
     total,
     excluded,
     targetTier,
-    side,
-    phaseLabel
+    side
   };
 }
 
@@ -817,21 +812,12 @@ function renderAlphaRank(openInlineChart = true) {
   }
 
   list.innerHTML = alphaRankings.map((item, index) => {
-    const phaseLabel = alphaCopy(
-      item.phaseLabel,
-      item.side === "long"
-        ? `${item.targetTier === "confirmed" ? "확정" : "형성 중"} 롱`
-        : item.side === "short"
-          ? `${item.targetTier === "confirmed" ? "확정" : "형성 중"} 숏`
-          : "방향 없음"
-    );
-    const trendLabel = item.trend.alignmentScore === 30
-      ? alphaCopy("Full alignment", "완전 정렬")
-      : item.trend.alignmentScore === 22
-        ? alphaCopy("Partial alignment", "부분 정렬")
-        : item.trend.alignmentScore === 14
-          ? alphaCopy("SMA200-side bias", "SMA200 방향 우위")
-          : alphaCopy("Mixed", "혼조");
+    const phase = item.phase || "D";
+    const phaseDirection = item.side === "long"
+      ? alphaCopy("Long", "롱")
+      : item.side === "short"
+        ? alphaCopy("Short", "숏")
+        : alphaCopy("Neutral", "중립");
     const alignmentText = direction => direction === "bullish"
       ? "P > S100 > S200"
       : direction === "bearish"
@@ -845,7 +831,7 @@ function renderAlphaRank(openInlineChart = true) {
     return `<button class="alpha-row ${item.side} ${expandedAlphaSymbol === item.symbol ? "expanded" : ""}" type="button" data-alpha-symbol="${item.symbol}" aria-expanded="${expandedAlphaSymbol === item.symbol}">
       <span class="alpha-rank">#${index + 1}</span>
       <span class="alpha-asset"><strong>${escapeHtml(item.symbol)}</strong></span>
-      <span class="alpha-direction"><b>${phaseLabel}</b><small>${trendLabel}</small></span>
+      <span class="alpha-direction"><b class="alpha-phase-letter" aria-label="Phase ${phase} · ${phaseDirection}" title="Phase ${phase} · ${phaseDirection}">${phase}</b></span>
       <span class="alpha-metric"><small>${alphaCopy("Trend", "추세")} · ${item.trend.score.toFixed(0)}/50 (A${item.trend.alignmentScore} + S${item.trend.slopeScore})</small><strong>${stack}<i>${slopeText}</i></strong></span>
       <span class="alpha-metric"><small>VWAP · ${item.proximity.score.toFixed(1)}/30</small><strong>${fmt(item.vwap.current)} <i>${item.proximity.distanceBps.toFixed(1)} bp · ${item.vwap.angle >= 0 ? "+" : ""}${item.vwap.angle.toFixed(2)}°</i></strong></span>
       <span class="alpha-metric"><small>${alphaCopy("Dry-up", "거래량 고갈")} · ${item.depletion.score.toFixed(1)}/20</small><strong>${item.depletion.ratio.toFixed(2)}× avg</strong></span>
