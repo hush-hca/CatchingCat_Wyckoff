@@ -18,7 +18,7 @@ const VIEW_COPY = {
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
   alpha: ["Alpha Rank", "Confirmed Phase C/D structures ranked by trend clarity, VWAP precision, and volume depletion."],
-  journal: ["Decision Journal", "Write the rule before the market gives you a story."],
+  setup: ["Setup", "Predefined trading setups ranked by structural and volume confirmation."],
   guide: ["How to use", "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다."]
 };
 
@@ -33,7 +33,6 @@ let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStor
 let currentFilter = "all";
 let sortRules = [];
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
-let journalEntries = readStorage("cc-journal", []);
 let expandedScannerSymbol = null;
 let scannerToggleToken = 0;
 let currentTimeframe = "1H";
@@ -48,6 +47,11 @@ let alphaRunToken = 0;
 let liveUniverseReady = false;
 let expandedAlphaSymbol = null;
 let alphaToggleToken = 0;
+let setupRankings = [];
+let setupLoading = false;
+let setupRunToken = 0;
+let expandedSetupSymbol = null;
+let setupToggleToken = 0;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -536,7 +540,6 @@ async function loadSelectedChart() {
     const dotClass = chartEstimate.structure === "distribution" ? "danger" : "green";
     qs("#chartStructure").innerHTML = `<i class="meta-dot ${dotClass}"></i>${structureName} · Phase ${chartPhase} · ${chartEstimate.phaseLabel} · ${timeframe} / 200`;
     renderPhaseTrack(chartPhase, chartEstimate.structure);
-    updateJournalSetup();
     renderChart(payload.candles, chartEstimate);
     restoreScrollPosition(scrollTop, scrollLeft);
   } catch {
@@ -556,7 +559,6 @@ function selectAsset(symbol, shouldRenderRows = true) {
   qs("#supportPrice").textContent = fmt(selected.support);
   qs("#resistancePrice").textContent = fmt(selected.resistance);
   qs("#chartRvol").textContent = `${selected.rvol.toFixed(1)}×`;
-  updateJournalSetup();
   if (shouldRenderRows) renderRows();
   renderPhaseTrack(selected.phase, selected.structure);
   loadSelectedChart();
@@ -1070,12 +1072,193 @@ async function refreshAlphaRank() {
   renderAlphaRank();
 }
 
+function analyzeFakeoutShort(asset) {
+  if (asset.phaseSource !== "structure" || asset.structure !== "distribution" || !["D", "E"].includes(asset.phase)) return null;
+  const payload = chartCache.get(`${asset.symbol}:${STRUCTURE_INTERVAL}`);
+  const candles = payload?.candles;
+  if (!candles || candles.length < STRUCTURE_CANDLE_LIMIT) return null;
+
+  const failedTests = [];
+  const weeklyWindow = 168;
+  for (let index = weeklyWindow; index < candles.length; index += 1) {
+    const candle = candles[index];
+    if (candle.close <= candle.open) continue;
+    const priorWeeklyHigh = Math.max(...candles.slice(index - weeklyWindow, index).map(item => item.high));
+    const highGapRatio = Math.abs(candle.high - priorWeeklyHigh) / priorWeeklyHigh;
+    if (highGapRatio > 0.005 || candle.close >= priorWeeklyHigh) continue;
+    const recentTest = failedTests.at(-1);
+    if (recentTest && index - recentTest.index < 6) {
+      if (candle.volume <= recentTest.failedVolume) continue;
+      failedTests.pop();
+    }
+
+    const followingEnd = Math.min(candles.length, index + 7);
+    const following = candles.slice(index + 1, followingEnd);
+    const bullishFollowThrough = following.filter(item => item.close > item.open).slice(0, 3);
+    const bullishAverageVolume = bullishFollowThrough.reduce((sum, item) => sum + item.volume, 0) / Math.max(bullishFollowThrough.length, 1);
+    const bullishVolumeRatio = candle.volume ? bullishAverageVolume / candle.volume : Infinity;
+    const volumeDivergence = bullishFollowThrough.length >= 2 && bullishVolumeRatio <= 0.5;
+
+    let bearishConfirmation = null;
+    for (let offset = 1; offset < followingEnd - index; offset += 1) {
+      const confirmationIndex = index + offset;
+      const confirmation = candles[confirmationIndex];
+      if (confirmation.close >= confirmation.open || confirmationIndex < 3) continue;
+      const previousAverage = candles
+        .slice(confirmationIndex - 3, confirmationIndex)
+        .reduce((sum, item) => sum + item.volume, 0) / 3;
+      if (confirmation.volume >= previousAverage) {
+        bearishConfirmation = {
+          index: confirmationIndex,
+          ratio: previousAverage ? confirmation.volume / previousAverage : 1
+        };
+        break;
+      }
+    }
+
+    failedTests.push({
+      index,
+      priorWeeklyHigh,
+      highGapRatio,
+      failedVolume: candle.volume,
+      bullishFollowThrough: bullishFollowThrough.length,
+      bullishVolumeRatio,
+      volumeDivergence,
+      bearishConfirmation
+    });
+  }
+
+  const confirmedTests = failedTests.filter(test => test.volumeDivergence && test.bearishConfirmation);
+  if (failedTests.length < 2 || !confirmedTests.length) return null;
+  const latest = confirmedTests.at(-1);
+  const precisionScore = 25 * Math.max(0, 1 - latest.highGapRatio / 0.005);
+  const repetitionScore = 20 * Math.min(1, failedTests.length / 3);
+  const divergenceScore = 15 + 15 * Math.max(0, 1 - latest.bullishVolumeRatio / 0.5);
+  const bearishScore = 10 + 10 * Math.min(1, Math.max(0, latest.bearishConfirmation.ratio - 1));
+  const barsAgo = candles.length - 1 - latest.index;
+  const recencyScore = 5 * Math.max(0, 1 - barsAgo / 32);
+
+  return {
+    symbol: asset.symbol,
+    phase: asset.phase,
+    structure: asset.structure,
+    score: Math.min(100, precisionScore + repetitionScore + divergenceScore + bearishScore + recencyScore),
+    testCount: failedTests.length,
+    weeklyHigh: latest.priorWeeklyHigh,
+    highGapPercent: latest.highGapRatio * 100,
+    bullishVolumeRatio: latest.bullishVolumeRatio,
+    bullishCandleCount: latest.bullishFollowThrough,
+    bearishVolumeRatio: latest.bearishConfirmation.ratio,
+    barsAgo
+  };
+}
+
+function renderSetupRank(openInlineChart = true) {
+  const list = qs("#setupList");
+  if (!list) return;
+  const chartPanel = qs("#selectedSetupPanel");
+  const chartAnchor = qs("#chartAnchor");
+  if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) chartAnchor.after(chartPanel);
+  if (!setupRankings.length) {
+    list.innerHTML = setupLoading ? "" : `<div class="setup-empty">${alphaCopy(
+      "No coin currently satisfies every Setup 1 condition.",
+      "현재 Setup 1의 모든 조건을 충족하는 코인이 없습니다."
+    )}</div>`;
+    return;
+  }
+
+  list.innerHTML = setupRankings.map((item, index) => {
+    const inlineChart = expandedSetupSymbol === item.symbol
+      ? `<div class="setup-inline-shell" data-setup-chart-for="${item.symbol}"><div class="setup-inline-mount"></div></div>`
+      : "";
+    return `<button class="setup-row ${expandedSetupSymbol === item.symbol ? "expanded" : ""}" type="button" data-setup-symbol="${item.symbol}" aria-expanded="${expandedSetupSymbol === item.symbol}">
+      <span class="setup-rank">#${index + 1}</span>
+      <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
+      <span class="setup-phase">DIST · ${item.phase}</span>
+      <span class="setup-metric"><small>${alphaCopy("Weekly-high failures", "주간 고점 실패")}</small><strong>${item.testCount}× · gap ${item.highGapPercent.toFixed(2)}%</strong></span>
+      <span class="setup-metric"><small>${alphaCopy("Bullish volume", "상승봉 거래량")}</small><strong>${item.bullishVolumeRatio.toFixed(2)}× · ${item.bullishCandleCount} candles</strong></span>
+      <span class="setup-metric"><small>${alphaCopy("Bearish confirmation", "하락봉 확인")}</small><strong>${item.bearishVolumeRatio.toFixed(2)}× prev. avg</strong></span>
+      <span class="setup-score">${item.score.toFixed(0)}</span>
+    </button>${inlineChart}`;
+  }).join("");
+
+  const inlineMount = qs(".setup-inline-mount");
+  if (inlineMount && chartPanel) {
+    inlineMount.append(chartPanel);
+    if (openInlineChart) qs(".setup-inline-shell")?.classList.add("open");
+  }
+  qsa("[data-setup-symbol]").forEach(button => {
+    button.onclick = () => toggleSetupChart(button.dataset.setupSymbol);
+  });
+}
+
+function toggleSetupChart(symbol) {
+  const scrollTop = window.scrollY;
+  const scrollLeft = window.scrollX;
+  const listScrollLeft = qs("#setupList")?.scrollLeft || 0;
+  const sameSymbol = expandedSetupSymbol === symbol;
+  const openShell = qs(".setup-inline-shell.open");
+  const token = ++setupToggleToken;
+  const commitToggle = () => {
+    if (token !== setupToggleToken) return;
+    expandedSetupSymbol = sameSymbol ? null : symbol;
+    if (!sameSymbol) {
+      currentTimeframe = "1H";
+      qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === "1H"));
+      selectAsset(symbol, false);
+    }
+    renderSetupRank(false);
+    if (qs("#setupList")) qs("#setupList").scrollLeft = listScrollLeft;
+    restoreScrollPosition(scrollTop, scrollLeft);
+    if (!sameSymbol) requestAnimationFrame(() => {
+      if (token !== setupToggleToken) return;
+      qs(".setup-inline-shell")?.classList.add("open");
+      restoreScrollPosition(scrollTop, scrollLeft);
+    });
+  };
+  if (openShell) {
+    openShell.classList.remove("open");
+    window.setTimeout(commitToggle, 220);
+  } else {
+    commitToggle();
+  }
+}
+
+async function refreshSetupRank() {
+  if (setupLoading) return;
+  const token = ++setupRunToken;
+  const status = qs("#setupStatus");
+  setupLoading = true;
+  setupRankings = [];
+  expandedSetupSymbol = null;
+  setupToggleToken += 1;
+  renderSetupRank();
+  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 1", "Setup 1 분석 중")}</strong><small>${alphaCopy("Checking 1H 200-candle weekly-high and volume conditions.", "1H 200캔들의 주간 고점 및 거래량 조건을 확인합니다.")}</small></div>`;
+  if (structureAnalysisPromise) await structureAnalysisPromise;
+  if (token !== setupRunToken) return;
+
+  setupRankings = assets
+    .map(analyzeFakeoutShort)
+    .filter(Boolean)
+    .sort((left, right) => right.score - left.score || right.testCount - left.testCount || left.highGapPercent - right.highGapPercent);
+  setupLoading = false;
+  status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 1 ranking ready", "Setup 1 순위 완료")}</strong><small>${alphaCopy(
+    `${setupRankings.length} assets meet every condition`,
+    `${setupRankings.length}개 종목이 모든 조건을 충족`
+  )}</small></div>`;
+  renderSetupRank();
+}
+
 function setView(view) {
   if (!VIEW_COPY[view]) return;
   if (view !== "scanner") expandedScannerSymbol = null;
   if (view !== "alpha") {
     expandedAlphaSymbol = null;
     alphaToggleToken += 1;
+  }
+  if (view !== "setup") {
+    expandedSetupSymbol = null;
+    setupToggleToken += 1;
   }
   currentView = view;
   document.body.dataset.view = view;
@@ -1093,10 +1276,15 @@ function setView(view) {
   qs("#opportunityTitle").textContent = view === "watchlist" ? "Monitored assets" : view === "scanner" ? "Qualified setups" : "Priority opportunities";
   qs("#opportunityEyebrow").textContent = view === "watchlist" ? "FOCUSED UNIVERSE" : "INSTITUTIONAL FOOTPRINTS";
   renderRows();
-  if (view === "journal") renderJournal();
   if (view === "alpha") {
     renderAlphaRank();
     if (liveUniverseReady) refreshAlphaRank();
+  }
+  if (view === "setup") {
+    currentTimeframe = "1H";
+    qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === "1H"));
+    renderSetupRank();
+    if (liveUniverseReady) refreshSetupRank();
   }
 }
 
@@ -1106,23 +1294,6 @@ function showToast(title, detail, icon = "✓") {
   toast.innerHTML = `<span>${icon}</span><div><strong>${title}</strong><small>${detail}</small></div>`;
   qs("#toastStack").append(toast);
   setTimeout(() => toast.remove(), 3800);
-}
-
-function updateJournalSetup() {
-  qs("#journalCoin").textContent = selected.symbol[0];
-  qs("#journalCoin").className = `coin-badge ${selected.symbol.toLowerCase()}`;
-  qs("#journalAsset").textContent = `${selected.symbol} / USDT`;
-  qs("#journalPhase").textContent = `PHASE ${selected.phase}`;
-}
-
-function renderJournal() {
-  qs("#journalCount").textContent = `${journalEntries.length} ${journalEntries.length === 1 ? "NOTE" : "NOTES"}`;
-  qs("#journalEntries").innerHTML = journalEntries.length ? journalEntries.map(entry => `
-    <article class="journal-entry">
-      <span class="coin-badge ${entry.symbol.toLowerCase()}">${entry.symbol[0]}</span>
-      <div><strong>${escapeHtml(entry.symbol)} · ${escapeHtml(entry.type)}</strong><p>${escapeHtml(entry.note)}</p><small>Phase ${escapeHtml(entry.phase)}</small></div>
-      <time>${escapeHtml(entry.time)}</time>
-    </article>`).join("") : `<div class="journal-empty">No decisions recorded yet.<br/>The best time to write the rule is before the trigger.</div>`;
 }
 
 async function refreshLiveData() {
@@ -1183,6 +1354,7 @@ async function refreshLiveData() {
   liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (currentView === "alpha") refreshAlphaRank();
+  if (currentView === "setup") refreshSetupRank();
 }
 
 function renderAll() {
@@ -1190,36 +1362,6 @@ function renderAll() {
   renderTickers();
   renderFire();
   selectAsset(selected.symbol);
-}
-
-function initJournal() {
-  qs("#journalNote").oninput = event => {
-    qs("#journalCharacters").textContent = event.target.value.length;
-  };
-  qs("#journalForm").onsubmit = event => {
-    event.preventDefault();
-    const note = qs("#journalNote").value.trim();
-    if (!note) return;
-    journalEntries.unshift({
-      symbol: selected.symbol,
-      phase: selected.phase,
-      type: qs("#journalType").value,
-      note,
-      time: new Date().toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
-    });
-    journalEntries = journalEntries.slice(0, 50);
-    localStorage.setItem("cc-journal", JSON.stringify(journalEntries));
-    qs("#journalForm").reset();
-    qs("#journalCharacters").textContent = "0";
-    renderJournal();
-    showToast("Decision saved", "Your rule is anchored before execution.", "▤");
-  };
-  qs("#clearJournalBtn").onclick = () => {
-    journalEntries = [];
-    localStorage.removeItem("cc-journal");
-    renderJournal();
-    showToast("Journal cleared", "Local decision notes have been removed.", "○");
-  };
 }
 
 qsa(".tabs button").forEach(button => {
@@ -1274,6 +1416,7 @@ qs("#saveSettingsBtn").onclick = () => {
 qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test · ONDO breakout watch · ENA accumulation", "!");
 qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
+qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
 function openFullScanner() {
   setView("scanner");
@@ -1294,18 +1437,16 @@ qsa("[data-guide-view]").forEach(button => {
 document.addEventListener("keydown", event => {
   const tag = event.target.tagName;
   if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || qs("dialog[open]")) return;
-  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "5": "alpha", "a": "alpha", "j": "journal", "h": "guide" };
+  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "5": "alpha", "a": "alpha", "s": "setup", "h": "guide" };
   if (shortcuts[event.key.toLowerCase()]) setView(shortcuts[event.key.toLowerCase()]);
 });
 window.addEventListener("catchingcat:language", () => {
   updateUniverseFilterStatus();
   loadSelectedChart();
   renderAlphaRank();
+  renderSetupRank();
 });
 
-initJournal();
-updateJournalSetup();
-renderJournal();
 updateSortControls();
 setView(currentView);
 renderAll();

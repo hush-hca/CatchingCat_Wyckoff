@@ -28,7 +28,7 @@
         <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist <em id="watchCount">3</em></button>
         <p>Edge</p>
         <button class="nav-item" data-view="alpha"><span>α</span> Alpha Rank</button>
-        <button class="nav-item" data-view="journal"><span>▤</span> Decision journal</button>
+        <button class="nav-item" data-view="setup"><span>⌁</span> Setup</button>
         <p>Help</p>
         <button class="nav-item" data-view="guide"><span>?</span> How to use</button>
       </nav>
@@ -38,7 +38,7 @@
           <button type="button" data-language="ko"><span class="lang-full">한국어</span><span class="lang-short">한</span></button>
           <button type="button" data-language="en"><span class="lang-full">English</span><span class="lang-short">EN</span></button>
         </div>
-        <div class="shortcut-hint"><span>1—5</span> views · <span>A</span> Alpha Rank · <span>H</span> help</div>
+        <div class="shortcut-hint"><span>1—5</span> views · <span>A</span> Alpha Rank · <span>S</span> Setup · <span>H</span> help</div>
         <button class="nav-item" id="settingsBtn"><span>⚙</span> Settings</button>
         <div class="operator">
           <span class="avatar">CC</span>
@@ -196,39 +196,21 @@
           <div class="alpha-list" id="alphaList"></div>
         </article>
 
-        <article class="panel journal-panel" id="journalPanel">
-          <div class="panel-head">
-            <div><span class="eyebrow">DECISION HYGIENE</span><h2>Decision journal</h2></div>
-            <span class="journal-count" id="journalCount">0 NOTES</span>
+        <article class="panel setup-panel" id="setupPanel">
+          <div class="panel-head setup-head">
+            <div><span class="eyebrow">SETUP 1 · SHORT REVERSAL</span><h2>Altcoin Fakeout Short</h2><p class="muted">Ranks Distribution Phase D–E assets that repeatedly reject the previous one-week high and show weakening bullish demand.</p></div>
+            <button class="ghost-button" id="refreshSetupBtn" type="button">Refresh setup</button>
           </div>
-          <div class="journal-layout">
-            <form class="journal-compose" id="journalForm">
-              <div class="journal-asset">
-                <span class="coin-badge sui" id="journalCoin">S</span>
-                <div><small>CURRENT SETUP</small><strong id="journalAsset">SUI / USDT</strong></div>
-                <span class="phase-pill" id="journalPhase">PHASE C</span>
-              </div>
-              <label>Decision type
-                <select id="journalType">
-                  <option>Observation</option>
-                  <option>Entry plan</option>
-                  <option>Invalidation</option>
-                  <option>Post-trade review</option>
-                </select>
-              </label>
-              <label>Write the rule, not the story
-                <textarea id="journalNote" rows="6" maxlength="500" placeholder="Example: Wait for the 4H close above resistance with RVOL ≥ 3×. Invalidate below range support." required></textarea>
-              </label>
-              <div class="journal-actions">
-                <small><span id="journalCharacters">0</span>/500 · Saved only on this device</small>
-                <button type="submit">Save decision</button>
-              </div>
-            </form>
-            <div class="journal-history">
-              <div class="history-head"><strong>Recent decisions</strong><button id="clearJournalBtn" type="button">Clear all</button></div>
-              <div id="journalEntries"></div>
-            </div>
+          <div class="setup-rules">
+            <span><b>01</b><strong>Weekly-high rejection</strong><small>High within ±0.5%, close below · at least 2 tests</small></span>
+            <span><b>02</b><strong>Bullish volume divergence</strong><small>Next 2–3 bullish candles average ≤50%</small></span>
+            <span><b>03</b><strong>Bearish confirmation</strong><small>Bearish volume ≥ previous 3-candle average</small></span>
           </div>
+          <div class="setup-status" id="setupStatus">
+            <span class="pulse"></span>
+            <div><strong>Waiting for 200-candle structures</strong><small>Setup ranking starts after the Wyckoff universe is ready.</small></div>
+          </div>
+          <div class="setup-list" id="setupList"></div>
         </article>
 
         <article class="panel guide-panel" id="guidePanel" lang="ko">
@@ -270,7 +252,7 @@
               <i>→</i>
               <button type="button" data-guide-view="alpha"><b>4</b><span>Alpha Rank</span><small>Phase C/D 우선순위 확인</small></button>
               <i>→</i>
-              <button type="button" data-guide-view="journal"><b>5</b><span>Journal</span><small>근거와 무효화 기록</small></button>
+              <button type="button" data-guide-view="setup"><b>5</b><span>Setup</span><small>사전 정의 셋업 순위 확인</small></button>
             </div>
           </section>
 
@@ -292,7 +274,7 @@
                 <button type="button" data-guide-view="scanner"><span>◎</span><div><strong>Wyckoff Scanner</strong><small>구조·Phase·지지/저항을 비교</small></div></button>
                 <button type="button" data-guide-view="watchlist"><span>◇</span><div><strong>Watchlist</strong><small>내가 고른 종목만 집중 감시</small></div></button>
                 <button type="button" data-guide-view="alpha"><span>α</span><div><strong>Alpha Rank</strong><small>Phase C/D 구조 후보를 점수순으로 정렬</small></div></button>
-                <button type="button" data-guide-view="journal"><span>▤</span><div><strong>Decision Journal</strong><small>진입 근거와 무효화 조건을 로컬 저장</small></div></button>
+                <button type="button" data-guide-view="setup"><span>⌁</span><div><strong>Setup</strong><small>사전 정의 조건을 충족한 코인을 순위화</small></div></button>
               </div>
             </div>
           </section>
@@ -312,7 +294,7 @@
             <div class="shortcut-card">
               <span class="eyebrow">FAST OPERATION</span>
               <h3>키보드 단축키</h3>
-              <div><kbd>1</kbd><span>Dashboard</span><kbd>2</kbd><span>Volume Fire</span><kbd>3</kbd><span>Scanner</span><kbd>4</kbd><span>Watchlist</span><kbd>5</kbd><span>Alpha Rank</span><kbd>J</kbd><span>Journal</span></div>
+              <div><kbd>1</kbd><span>Dashboard</span><kbd>2</kbd><span>Volume Fire</span><kbd>3</kbd><span>Scanner</span><kbd>4</kbd><span>Watchlist</span><kbd>5</kbd><span>Alpha Rank</span><kbd>S</kbd><span>Setup</span></div>
             </div>
             <div class="guide-note">
               <span>!</span>
