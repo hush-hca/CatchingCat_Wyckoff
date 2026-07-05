@@ -1073,7 +1073,7 @@ async function refreshAlphaRank() {
 }
 
 function analyzeFakeoutShort(asset) {
-  if (asset.phaseSource !== "structure" || asset.structure !== "distribution" || !["D", "E"].includes(asset.phase)) return null;
+  if (asset.phaseSource !== "structure") return null;
   const payload = chartCache.get(`${asset.symbol}:${STRUCTURE_INTERVAL}`);
   const candles = payload?.candles;
   if (!candles || candles.length < STRUCTURE_CANDLE_LIMIT) return null;
@@ -1174,7 +1174,7 @@ function renderSetupRank(openInlineChart = true) {
     return `<button class="setup-row ${expandedSetupSymbol === item.symbol ? "expanded" : ""}" type="button" data-setup-symbol="${item.symbol}" aria-expanded="${expandedSetupSymbol === item.symbol}">
       <span class="setup-rank">#${index + 1}</span>
       <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
-      <span class="setup-phase">DIST · ${item.phase}</span>
+      <span class="setup-phase">${item.structure === "distribution" ? "DIST" : "ACC"} · ${item.phase}</span>
       <span class="setup-metric"><small>${alphaCopy("Weekly-high failures", "주간 고점 실패")}</small><strong>${item.testCount}× · gap ${item.highGapPercent.toFixed(2)}%</strong></span>
       <span class="setup-metric"><small>${alphaCopy("Bullish volume", "상승봉 거래량")}</small><strong>${item.bullishVolumeRatio.toFixed(2)}× · ${item.bullishCandleCount} candles</strong></span>
       <span class="setup-metric"><small>${alphaCopy("Bearish confirmation", "하락봉 확인")}</small><strong>${item.bearishVolumeRatio.toFixed(2)}× prev. avg</strong></span>

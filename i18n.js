@@ -42,7 +42,7 @@
     "PHASE C/D STRUCTURE RADAR": "PHASE C/D 구조 레이더",
     "SETUP 1 · SHORT REVERSAL": "셋업 1 · 숏 반전",
     "Altcoin Fakeout Short": "알트코인 페이크아웃 숏",
-    "Ranks Distribution Phase D–E assets that repeatedly reject the previous one-week high and show weakening bullish demand.": "직전 1주 고점을 반복적으로 돌파하지 못하고 상승 수요가 약해진 Distribution Phase D–E 종목을 정렬합니다.",
+    "Ranks assets that repeatedly reject the previous one-week high and show weakening bullish demand, regardless of Wyckoff structure or phase.": "Wyckoff 구조나 Phase와 관계없이 직전 1주 고점을 반복적으로 돌파하지 못하고 상승 수요가 약해진 종목을 정렬합니다.",
     "Refresh setup": "셋업 새로고침",
     "Weekly-high rejection": "주간 고점 거부",
     "High within ±0.5%, close below · at least 2 tests": "고가 ±0.5% 이내·종가 아래 마감 · 최소 2회",
