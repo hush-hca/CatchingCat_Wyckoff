@@ -1434,12 +1434,6 @@ qsa("[data-guide-view]").forEach(button => {
   button.onclick = () => setView(button.dataset.guideView);
 });
 
-document.addEventListener("keydown", event => {
-  const tag = event.target.tagName;
-  if (["INPUT", "TEXTAREA", "SELECT"].includes(tag) || qs("dialog[open]")) return;
-  const shortcuts = { "1": "dashboard", "2": "volume", "3": "scanner", "4": "watchlist", "5": "alpha", "a": "alpha", "s": "setup", "h": "guide" };
-  if (shortcuts[event.key.toLowerCase()]) setView(shortcuts[event.key.toLowerCase()]);
-});
 window.addEventListener("catchingcat:language", () => {
   updateUniverseFilterStatus();
   loadSelectedChart();
