@@ -197,13 +197,23 @@
 
         <article class="panel setup-panel" id="setupPanel">
           <div class="panel-head setup-head">
-            <div><span class="eyebrow">SETUP 1 · SHORT REVERSAL</span><h2>Altcoin Fakeout Short</h2><p class="muted">Ranks assets that repeatedly reject the previous one-week high and show weakening bullish demand, regardless of Wyckoff structure or phase.</p></div>
+            <div class="setup-heading setup1-only"><span class="eyebrow">SETUP 1 · SHORT REVERSAL</span><h2>Altcoin Fakeout Short</h2><p class="muted">Ranks assets that repeatedly reject the previous one-week high and show weakening bullish demand, regardless of Wyckoff structure or phase.</p></div>
+            <div class="setup-heading setup2-only"><span class="eyebrow">SETUP 2 · TIME WINDOW</span><h2>04:00–09:00 KST Decline Window</h2><p class="muted">Scanner symbols that declined in most completed 04:00–09:00 KST sessions over the last seven days.</p></div>
             <button class="ghost-button" id="refreshSetupBtn" type="button">Refresh setup</button>
           </div>
-          <div class="setup-rules">
+          <div class="setup-switch" role="tablist" aria-label="Setup selection">
+            <button class="active" type="button" role="tab" aria-selected="true" data-setup-view="setup1">Setup 1</button>
+            <button type="button" role="tab" aria-selected="false" data-setup-view="setup2">Setup 2</button>
+          </div>
+          <div class="setup-rules setup1-only">
             <span><b>01</b><strong>Weekly-high rejection</strong><small>High within ±0.5%, close below · at least 2 tests</small></span>
             <span><b>02</b><strong>Bullish volume divergence</strong><small>Next 2–3 bullish candles average ≤50%</small></span>
             <span><b>03</b><strong>Bearish confirmation</strong><small>Bearish volume ≥ previous 3-candle average</small></span>
+          </div>
+          <div class="setup-rules setup2-only">
+            <span><b>01</b><strong>Seven KST sessions</strong><small>Completed 1H candles from 04:00 through 09:00 KST</small></span>
+            <span><b>02</b><strong>Decline probability</strong><small>More than half of observed sessions close lower</small></span>
+            <span><b>03</b><strong>Negative average move</strong><small>Average 04:00–09:00 return must remain below 0%</small></span>
           </div>
           <div class="setup-status" id="setupStatus">
             <span class="pulse"></span>

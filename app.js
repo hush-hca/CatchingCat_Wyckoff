@@ -52,12 +52,19 @@ let setupLoading = false;
 let setupRunToken = 0;
 let expandedSetupSymbol = null;
 let setupToggleToken = 0;
+let activeSetupView = "setup1";
+let setup2Rankings = [];
+let setup2VolumeSort = null;
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
 const fmt = (value) => value >= 1000
   ? `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
   : value >= 10 ? `$${value.toFixed(3)}` : `$${value.toFixed(4)}`;
+const compactUsd = (value) => `$${new Intl.NumberFormat(undefined, {
+  notation: "compact",
+  maximumFractionDigits: 1
+}).format(Math.max(0, value))}`;
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
 })[character]);
@@ -616,7 +623,8 @@ async function fetchPublicKlines(symbol, interval, limit, startTime) {
     high: Number(row[2]),
     low: Number(row[3]),
     close: Number(row[4]),
-    volume: Number(row[5])
+    volume: Number(row[5]),
+    quoteVolume: Number(row[7])
   })).filter(candle => [candle.time, candle.open, candle.high, candle.low, candle.close, candle.volume].every(Number.isFinite));
   if (candles.length < Math.min(limit, 20)) throw new Error(`${symbol} ${interval} insufficient`);
   return candles;
@@ -1153,7 +1161,146 @@ function analyzeFakeoutShort(asset) {
   };
 }
 
+function analyzeKstDeclineWindow(asset) {
+  const payload = chartCache.get(`${asset.symbol}:${STRUCTURE_INTERVAL}`);
+  const candles = payload?.candles;
+  if (!candles || candles.length < STRUCTURE_CANDLE_LIMIT) return null;
+
+  const kstOffset = 9 * 60 * 60_000;
+  const sessions = new Map();
+  candles.forEach(candle => {
+    if (candle.time + 60 * 60_000 > Date.now()) return;
+    const kst = new Date(candle.time + kstOffset);
+    const hour = kst.getUTCHours();
+    if (hour < 4 || hour >= 9) return;
+    const day = `${kst.getUTCFullYear()}-${String(kst.getUTCMonth() + 1).padStart(2, "0")}-${String(kst.getUTCDate()).padStart(2, "0")}`;
+    if (!sessions.has(day)) sessions.set(day, new Map());
+    sessions.get(day).set(hour, candle);
+  });
+
+  const completed = [...sessions.entries()]
+    .map(([day, hours]) => {
+      if (![4, 5, 6, 7, 8].every(hour => hours.has(hour))) return null;
+      const ordered = [4, 5, 6, 7, 8].map(hour => hours.get(hour));
+      const open = ordered[0].open;
+      const close = ordered.at(-1).close;
+      const quoteVolume = ordered.reduce((sum, candle) => {
+        const fallbackQuoteVolume = candle.volume * ((candle.high + candle.low + candle.close) / 3);
+        return sum + (Number.isFinite(candle.quoteVolume) && candle.quoteVolume > 0 ? candle.quoteVolume : fallbackQuoteVolume);
+      }, 0);
+      return { day, returnRate: open ? close / open - 1 : 0, quoteVolume };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.day.localeCompare(right.day))
+    .slice(-7);
+
+  if (completed.length < 5) return null;
+  const downSessions = completed.filter(session => session.returnRate < 0);
+  const declineProbability = downSessions.length / completed.length;
+  const averageReturn = completed.reduce((sum, session) => sum + session.returnRate, 0) / completed.length;
+  if (declineProbability <= 0.5 || averageReturn >= 0) return null;
+
+  const averageQuoteVolume = completed.reduce((sum, session) => sum + session.quoteVolume, 0) / completed.length;
+  const averageDownMove = downSessions.length
+    ? downSessions.reduce((sum, session) => sum + session.returnRate, 0) / downSessions.length
+    : 0;
+
+  return {
+    symbol: asset.symbol,
+    phase: asset.phase,
+    structure: asset.structure,
+    sessionCount: completed.length,
+    downSessions: downSessions.length,
+    declineProbability,
+    averageReturn,
+    averageDownMove,
+    averageQuoteVolume
+  };
+}
+
+function sortedSetup2Rankings() {
+  const defaultSorted = [...setup2Rankings].sort((left, right) =>
+    right.declineProbability - left.declineProbability
+    || left.averageReturn - right.averageReturn
+    || right.averageQuoteVolume - left.averageQuoteVolume
+  );
+  if (!setup2VolumeSort) return defaultSorted;
+  return defaultSorted
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((left, right) => {
+      const difference = left.item.averageQuoteVolume - right.item.averageQuoteVolume;
+      return difference
+        ? (setup2VolumeSort === "asc" ? difference : -difference)
+        : left.originalIndex - right.originalIndex;
+    })
+    .map(entry => entry.item);
+}
+
+function updateSetup2VolumeSort() {
+  setup2VolumeSort = setup2VolumeSort === null ? "desc" : setup2VolumeSort === "desc" ? "asc" : null;
+  expandedSetupSymbol = null;
+  setupToggleToken += 1;
+  renderSetupRank();
+}
+
+function renderSetup2Rank(openInlineChart = true) {
+  const list = qs("#setupList");
+  if (!list) return;
+  const chartPanel = qs("#selectedSetupPanel");
+  const chartAnchor = qs("#chartAnchor");
+  if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) chartAnchor.after(chartPanel);
+  if (!setup2Rankings.length) {
+    list.innerHTML = setupLoading ? "" : `<div class="setup-empty">${alphaCopy(
+      "No scanner symbol has a majority decline pattern in the latest seven KST sessions.",
+      "최근 7개 KST 세션에서 과반 하락 패턴을 보인 스캐너 종목이 없습니다."
+    )}</div>`;
+    return;
+  }
+
+  const indicator = setup2VolumeSort === "desc" ? "↓" : setup2VolumeSort === "asc" ? "↑" : "↕";
+  const rankings = sortedSetup2Rankings();
+  list.innerHTML = `<div class="setup2-table">
+    <div class="setup2-table-head">
+      <span>#</span>
+      <span>${alphaCopy("Symbol", "종목")}</span>
+      <span>${alphaCopy("Phase", "단계")}</span>
+      <span>${alphaCopy("Decline probability", "하락 확률")}</span>
+      <span>${alphaCopy("Average move", "평균 변동")}</span>
+      <span>${alphaCopy("Down days", "하락 일수")}</span>
+      <button id="setup2VolumeSort" class="${setup2VolumeSort ? "sorted" : ""}" type="button" aria-label="${alphaCopy("Sort by volume", "거래량 기준 정렬")}">${alphaCopy("04–09 volume", "04–09 거래대금")} <b>${indicator}</b></button>
+    </div>
+    ${rankings.map((item, index) => {
+      const inlineChart = expandedSetupSymbol === item.symbol
+        ? `<div class="setup-inline-shell" data-setup-chart-for="${item.symbol}"><div class="setup-inline-mount"></div></div>`
+        : "";
+      return `<button class="setup2-row ${expandedSetupSymbol === item.symbol ? "expanded" : ""}" type="button" data-setup-symbol="${item.symbol}" aria-expanded="${expandedSetupSymbol === item.symbol}">
+        <span class="setup-rank">#${index + 1}</span>
+        <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
+        <span class="setup-phase">${item.structure === "distribution" ? "DIST" : item.structure === "accumulation" ? "ACC" : "—"} · ${item.phase}</span>
+        <strong class="setup2-probability">${(item.declineProbability * 100).toFixed(0)}%</strong>
+        <span class="setup2-move down">${(item.averageReturn * 100).toFixed(2)}%</span>
+        <span class="setup2-days">${item.downSessions}/${item.sessionCount}</span>
+        <strong class="setup2-volume">${compactUsd(item.averageQuoteVolume)}</strong>
+      </button>${inlineChart}`;
+    }).join("")}
+  </div>`;
+
+  const inlineMount = qs(".setup-inline-mount");
+  if (inlineMount && chartPanel) {
+    inlineMount.append(chartPanel);
+    if (openInlineChart) qs(".setup-inline-shell")?.classList.add("open");
+  }
+  qs("#setup2VolumeSort").onclick = updateSetup2VolumeSort;
+  qsa("[data-setup-symbol]").forEach(button => {
+    button.onclick = () => toggleSetupChart(button.dataset.setupSymbol);
+  });
+}
+
 function renderSetupRank(openInlineChart = true) {
+  if (activeSetupView === "setup2") {
+    renderSetup2Rank(openInlineChart);
+    return;
+  }
   const list = qs("#setupList");
   if (!list) return;
   const chartPanel = qs("#selectedSetupPanel");
@@ -1226,27 +1373,60 @@ function toggleSetupChart(symbol) {
 
 async function refreshSetupRank() {
   if (setupLoading) return;
+  const setupView = activeSetupView;
   const token = ++setupRunToken;
   const status = qs("#setupStatus");
   setupLoading = true;
-  setupRankings = [];
+  if (setupView === "setup1") setupRankings = [];
+  else setup2Rankings = [];
   expandedSetupSymbol = null;
   setupToggleToken += 1;
   renderSetupRank();
-  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 1", "Setup 1 분석 중")}</strong><small>${alphaCopy("Checking 1H 200-candle weekly-high and volume conditions.", "1H 200캔들의 주간 고점 및 거래량 조건을 확인합니다.")}</small></div>`;
+  status.innerHTML = setupView === "setup1"
+    ? `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 1", "Setup 1 분석 중")}</strong><small>${alphaCopy("Checking 1H 200-candle weekly-high and volume conditions.", "1H 200캔들의 주간 고점 및 거래량 조건을 확인합니다.")}</small></div>`
+    : `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 2", "Setup 2 분석 중")}</strong><small>${alphaCopy("Comparing the latest seven completed 04:00–09:00 KST sessions.", "최근 완료된 KST 04:00–09:00 세션 7개를 비교합니다.")}</small></div>`;
   if (structureAnalysisPromise) await structureAnalysisPromise;
-  if (token !== setupRunToken) return;
+  if (token !== setupRunToken || setupView !== activeSetupView) return;
 
-  setupRankings = assets
-    .map(analyzeFakeoutShort)
-    .filter(Boolean)
-    .sort((left, right) => right.score - left.score || right.testCount - left.testCount || left.highGapPercent - right.highGapPercent);
+  if (setupView === "setup1") {
+    setupRankings = assets
+      .map(analyzeFakeoutShort)
+      .filter(Boolean)
+      .sort((left, right) => right.score - left.score || right.testCount - left.testCount || left.highGapPercent - right.highGapPercent);
+  } else {
+    setup2Rankings = assets
+      .map(analyzeKstDeclineWindow)
+      .filter(Boolean);
+  }
   setupLoading = false;
-  status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 1 ranking ready", "Setup 1 순위 완료")}</strong><small>${alphaCopy(
-    `${setupRankings.length} assets meet every condition`,
-    `${setupRankings.length}개 종목이 모든 조건을 충족`
-  )}</small></div>`;
+  status.innerHTML = setupView === "setup1"
+    ? `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 1 ranking ready", "Setup 1 순위 완료")}</strong><small>${alphaCopy(
+      `${setupRankings.length} assets meet every condition`,
+      `${setupRankings.length}개 종목이 모든 조건을 충족`
+    )}</small></div>`
+    : `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 2 ranking ready", "Setup 2 순위 완료")}</strong><small>${alphaCopy(
+      `${setup2Rankings.length} scanner symbols show a majority decline pattern`,
+      `${setup2Rankings.length}개 스캐너 종목에서 과반 하락 패턴 확인`
+    )}</small></div>`;
   renderSetupRank();
+}
+
+function setActiveSetup(view, refresh = true) {
+  if (!["setup1", "setup2"].includes(view) || view === activeSetupView && qs("#setupPanel")?.dataset.activeSetup === view) return;
+  activeSetupView = view;
+  setupRunToken += 1;
+  setupLoading = false;
+  expandedSetupSymbol = null;
+  setupToggleToken += 1;
+  const panel = qs("#setupPanel");
+  if (panel) panel.dataset.activeSetup = view;
+  qsa("[data-setup-view]").forEach(button => {
+    const active = button.dataset.setupView === view;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  renderSetupRank();
+  if (refresh && liveUniverseReady) refreshSetupRank();
 }
 
 function setView(view) {
@@ -1417,6 +1597,9 @@ qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test 
 qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
+qsa("[data-setup-view]").forEach(button => {
+  button.onclick = () => setActiveSetup(button.dataset.setupView);
+});
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
 function openFullScanner() {
   setView("scanner");
@@ -1442,6 +1625,7 @@ window.addEventListener("catchingcat:language", () => {
 });
 
 updateSortControls();
+setActiveSetup(activeSetupView, false);
 setView(currentView);
 renderAll();
 refreshLiveData();
