@@ -61,10 +61,13 @@ const qsa = (selector) => [...document.querySelectorAll(selector)];
 const fmt = (value) => value >= 1000
   ? `$${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
   : value >= 10 ? `$${value.toFixed(3)}` : `$${value.toFixed(4)}`;
-const compactUsd = (value) => `$${new Intl.NumberFormat(undefined, {
-  notation: "compact",
-  maximumFractionDigits: 1
-}).format(Math.max(0, value))}`;
+const compactUsd = (value) => {
+  const amount = Math.max(0, Number(value) || 0);
+  if (amount >= 1_000_000_000) return `$${(amount / 1_000_000_000).toFixed(1)}B`;
+  if (amount >= 1_000_000) return `$${(amount / 1_000_000).toFixed(1)}M`;
+  if (amount >= 1_000) return `$${(amount / 1_000).toFixed(1)}K`;
+  return `$${amount.toFixed(0)}`;
+};
 const escapeHtml = (value) => String(value).replace(/[&<>"']/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
 })[character]);
