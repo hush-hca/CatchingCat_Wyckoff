@@ -12,6 +12,7 @@
   --violet: #b18cff;
   --danger: #ff6868;
   font-family: Manrope, system-ui, sans-serif;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
@@ -335,4 +336,162 @@ body[data-view="guide"] .guide-panel { display:block; }
   .language-switch button { height:25px;padding:0; }
   .lang-full { display:none; }
   .lang-short { display:inline; }
+}
+
+html[data-theme="light"] {
+  --bg: #edf4f0;
+  --panel: #ffffff;
+  --panel-2: #f4f8f6;
+  --line: rgba(26, 60, 46, .14);
+  --text: #17251f;
+  --muted: #657970;
+  --mint: #128a58;
+  --mint-soft: rgba(18, 138, 88, .10);
+  --orange: #b75d30;
+  --blue: #2f6faf;
+  --violet: #7958ad;
+  --danger: #c4444e;
+  color-scheme: light;
+  background: var(--bg);
+}
+html[data-theme="light"] body {
+  background: radial-gradient(circle at 60% -10%, #ffffff 0, var(--bg) 36%);
+}
+html[data-theme="light"] .noise { opacity:.018;mix-blend-mode:multiply; }
+html[data-theme="light"] .sidebar {
+  background:rgba(248,252,250,.96);
+  box-shadow:1px 0 0 rgba(255,255,255,.7);
+}
+html[data-theme="light"] .brand-mark { box-shadow:0 0 24px rgba(18,138,88,.12); }
+html[data-theme="light"] .brand-mark svg { stroke:#f7fbf9; }
+html[data-theme="light"] nav p,
+html[data-theme="light"] .summary-card > i,
+html[data-theme="light"] .sort-toolbar,
+html[data-theme="light"] .sort-indicator,
+html[data-theme="light"] .row-arrow,
+html[data-theme="light"] footer { color:#71847b; }
+html[data-theme="light"] .nav-item { color:#64786f; }
+html[data-theme="light"] .nav-item:hover,
+html[data-theme="light"] .nav-item.active { color:var(--mint); }
+html[data-theme="light"] .avatar,
+html[data-theme="light"] .coin-badge { background:#e0eee7; }
+html[data-theme="light"] .icon-button,
+html[data-theme="light"] .ticker-strip,
+html[data-theme="light"] .panel,
+html[data-theme="light"] .modal {
+  background:rgba(255,255,255,.94);
+  box-shadow:0 8px 28px rgba(31,68,51,.055);
+}
+html[data-theme="light"] .ticker-strip b,
+html[data-theme="light"] .chart-meta b { color:#31483e; }
+html[data-theme="light"] .summary-card {
+  background:linear-gradient(135deg,#ffffff,#f5f9f7);
+  box-shadow:0 6px 22px rgba(31,68,51,.045);
+}
+html[data-theme="light"] .summary-card small,
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] th,
+html[data-theme="light"] .setup2-table-head { color:#61766c; }
+html[data-theme="light"] .tabs,
+html[data-theme="light"] .timeframes,
+html[data-theme="light"] .setup-switch,
+html[data-theme="light"] .language-switch,
+html[data-theme="light"] .rule-matrix-head {
+  background:#e9f0ec;
+}
+html[data-theme="light"] .tabs button.active,
+html[data-theme="light"] .timeframes button.active,
+html[data-theme="light"] .setup-switch button.active,
+html[data-theme="light"] .language-switch button.active {
+  background:#d8e9e0;
+}
+html[data-theme="light"] td,
+html[data-theme="light"] .alpha-row,
+html[data-theme="light"] .setup-row,
+html[data-theme="light"] .setup2-row,
+html[data-theme="light"] .rule-list > div,
+html[data-theme="light"] .signal-guide article,
+html[data-theme="light"] .rule-matrix > div {
+  border-bottom-color:rgba(26,60,46,.09);
+}
+html[data-theme="light"] tbody tr:hover,
+html[data-theme="light"] tbody tr.selected,
+html[data-theme="light"] .alpha-row:hover,
+html[data-theme="light"] .alpha-row.expanded {
+  background:rgba(18,138,88,.055);
+}
+html[data-theme="light"] .setup-row:hover,
+html[data-theme="light"] .setup-row.expanded,
+html[data-theme="light"] .setup2-row:hover,
+html[data-theme="light"] .setup2-row.expanded { background:rgba(196,68,78,.045); }
+html[data-theme="light"] .signal-pill,
+html[data-theme="light"] .asset-title h2 small { color:#536a60;background:#e7efeb; }
+html[data-theme="light"] .rvol-bar,
+html[data-theme="light"] .fire-bar { background:#dce7e1; }
+html[data-theme="light"] .chart text { fill:#597066; }
+html[data-theme="light"] .phase-track .current,
+html[data-theme="light"] .clearance,
+html[data-theme="light"] .execute-button,
+html[data-theme="light"] .guide-actions button:first-child {
+  color:#ffffff;
+}
+html[data-theme="light"] .phase-track .current small { color:#e8fff3; }
+html[data-theme="light"] .discipline-state {
+  background:linear-gradient(90deg,rgba(18,138,88,.08),rgba(255,255,255,.2));
+}
+html[data-theme="light"] .ring { background:conic-gradient(var(--mint) 0 75%,#d9e5df 75%); }
+html[data-theme="light"] .ring::after { background:#f5faf7; }
+html[data-theme="light"] .alpha-score-key { background:rgba(47,111,175,.05); }
+html[data-theme="light"] .alpha-status,
+html[data-theme="light"] .setup-rules > span,
+html[data-theme="light"] .filter-policy,
+html[data-theme="light"] .check-asset { background:#f5f9f7; }
+html[data-theme="light"] body[data-view="alpha"] .alpha-inline-mount .chart-panel,
+html[data-theme="light"] body[data-view="setup"] .setup-inline-mount .chart-panel,
+html[data-theme="light"] .inline-chart-mount .chart-panel { background:#fbfdfc; }
+html[data-theme="light"] .field { color:#31483e; }
+html[data-theme="light"] .field textarea {
+  background:#f4f8f6;
+  color:#253a31;
+}
+html[data-theme="light"] .modal-close,
+html[data-theme="light"] .watchlist-empty button { background:#e5eee9; }
+html[data-theme="light"] .custom-check { border-color:#a9bbb2; }
+html[data-theme="light"] .checklist input:checked + .custom-check::after { color:#ffffff; }
+html[data-theme="light"] .execute-button:disabled { background:#dfe7e3;color:#819087; }
+html[data-theme="light"] .toggle-row i { background:#cbd8d1; }
+html[data-theme="light"] .toggle-row input:checked + i::after { background:#ffffff; }
+html[data-theme="light"] .toast {
+  background:#ffffff;
+  box-shadow:0 12px 35px rgba(31,68,51,.16);
+}
+html[data-theme="light"] dialog::backdrop { background:rgba(28,43,36,.38); }
+html[data-theme="light"] .guide-hero {
+  background:radial-gradient(circle at 90% 0,rgba(18,138,88,.10),transparent 38%),linear-gradient(135deg,#f4faf7,#ffffff);
+}
+html[data-theme="light"] .guide-hero p,
+html[data-theme="light"] .guide-section-head p,
+html[data-theme="light"] .guide-steps p,
+html[data-theme="light"] .signal-guide p,
+html[data-theme="light"] .screen-guide small,
+html[data-theme="light"] .guide-note p { color:#64786f; }
+html[data-theme="light"] .guide-principle {
+  background:rgba(255,255,255,.72);
+  box-shadow:inset 0 1px rgba(255,255,255,.8);
+}
+html[data-theme="light"] .guide-principle small,
+html[data-theme="light"] .routine-flow button small { color:#61766c; }
+html[data-theme="light"] .guide-steps article,
+html[data-theme="light"] .routine-flow > button,
+html[data-theme="light"] .screen-guide button {
+  background:#f7faf8;
+}
+html[data-theme="light"] .routine-flow > button:hover { background:#edf6f1; }
+html[data-theme="light"] .screen-guide button > span { background:#deebe4; }
+html[data-theme="light"] .guide-steps article > b { color:#c3d1ca; }
+html[data-theme="light"] .rule-matrix span { color:#5f746a; }
+
+@media(max-width:720px){
+  .header-actions .theme-button { display:block;flex:0 0 38px; }
+  .header-actions .clearance { width:auto;flex:1; }
 }

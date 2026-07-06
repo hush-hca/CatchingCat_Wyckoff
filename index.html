@@ -4,11 +4,14 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#07100d" />
+    <script>
+      document.documentElement.dataset.theme = localStorage.getItem("cc-theme") === "light" ? "light" : "dark";
+    </script>
     <title>Catching Cat — Market Navigator</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=theme-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -58,6 +61,7 @@
             <span class="pulse"></span>
             <div><small>Market feed</small><strong id="feedStatus">Connecting…</strong></div>
           </div>
+          <button class="icon-button theme-button" id="themeToggle" type="button" aria-label="Switch to light mode" title="Switch to light mode" data-i18n-ignore>☼</button>
           <button class="icon-button" id="alertBtn" aria-label="View alerts">♢<b>3</b></button>
           <button class="clearance" id="alphaRankBtn"><span>α</span> Open Alpha Rank</button>
         </div>
@@ -337,8 +341,8 @@
       </form>
     </dialog>
 
-    <script src="i18n.js?v=setup2-1"></script>
+    <script src="i18n.js?v=theme-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js"></script>
+    <script src="app.js?v=theme-1"></script>
   </body>
 </html>

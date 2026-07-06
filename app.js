@@ -72,6 +72,23 @@ const escapeHtml = (value) => String(value).replace(/[&<>"']/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
 })[character]);
 
+function applyTheme(theme) {
+  const nextTheme = theme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = nextTheme;
+  localStorage.setItem("cc-theme", nextTheme);
+  const light = nextTheme === "light";
+  const toggle = qs("#themeToggle");
+  const label = light ? "Switch to dark mode" : "Switch to light mode";
+  if (toggle) {
+    toggle.textContent = light ? "◐" : "☼";
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+    toggle.setAttribute("aria-pressed", String(light));
+  }
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = light ? "#edf4f0" : "#07100d";
+}
+
 function readStorage(key, fallback) {
   try {
     const value = JSON.parse(localStorage.getItem(key));
@@ -1581,6 +1598,8 @@ qs(".brand").onclick = event => {
   setView("dashboard");
 };
 qs("#settingsBtn").onclick = () => qs("#settingsDialog").showModal();
+qs("#themeToggle").onclick = () => applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light");
+applyTheme(document.documentElement.dataset.theme);
 qs("#thresholdRange").value = threshold;
 qs("#thresholdOutput").textContent = `${threshold.toFixed(1)}×`;
 qs("#blacklistInput").value = manualBlacklist;

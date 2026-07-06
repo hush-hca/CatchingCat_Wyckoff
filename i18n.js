@@ -17,6 +17,8 @@
     "clearance": "진입 승인",
     "help": "도움말",
     "Settings": "설정",
+    "Switch to light mode": "라이트 모드로 전환",
+    "Switch to dark mode": "다크 모드로 전환",
     "Manual operator": "수동 매매",
     "Execution locked": "자동 주문 차단",
     "Good evening, Operator.": "좋은 저녁입니다, 트레이더님.",
