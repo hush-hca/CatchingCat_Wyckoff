@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=watch-alpha-1" />
+    <link rel="stylesheet" href="styles.css?v=alpha-help-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -178,7 +178,10 @@
           <div class="panel-head alpha-head">
             <div>
               <span class="eyebrow">PHASE C/D STRUCTURE RADAR</span>
-              <h2>Alpha Rank</h2>
+              <h2 class="title-with-help">Alpha Rank
+                <button class="help-tip" type="button" aria-label="What Alpha Rank means" aria-describedby="alphaRankHelp">?</button>
+                <span class="help-popover" id="alphaRankHelp" role="tooltip">Alpha Rank is a priority score for Phase C/D candidates. Higher rank means the setup has clearer 1H/4H trend alignment, tighter Session VWAP proximity, and stronger volume dry-up, so it is more worth watching first.</span>
+              </h2>
               <p class="muted">200-candle Phase C/D structures ranked by SMA200 trend clarity, Session VWAP proximity, and volume depletion.</p>
             </div>
             <div class="alpha-actions">
