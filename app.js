@@ -54,7 +54,7 @@ let expandedSetupSymbol = null;
 let setupToggleToken = 0;
 let activeSetupView = "setup1";
 let setup2Rankings = [];
-let setup2VolumeSort = null;
+let setup2VolumeSort = "desc";
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -1257,7 +1257,7 @@ function sortedSetup2Rankings() {
 }
 
 function updateSetup2VolumeSort() {
-  setup2VolumeSort = setup2VolumeSort === null ? "desc" : setup2VolumeSort === "desc" ? "asc" : null;
+  setup2VolumeSort = setup2VolumeSort === "desc" ? "asc" : "desc";
   expandedSetupSymbol = null;
   setupToggleToken += 1;
   renderSetupRank();
