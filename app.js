@@ -33,6 +33,10 @@ let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStor
 let currentFilter = "all";
 let sortRules = [];
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
+let expandedWatchlistSymbol = null;
+let watchlistToggleToken = 0;
+const watchlistAlphaScores = new Map();
+const watchlistAlphaLoading = new Set();
 let expandedScannerSymbol = null;
 let scannerToggleToken = 0;
 let currentTimeframe = "1H";
@@ -261,7 +265,7 @@ function renderRows(openInlineChart = true) {
     const structureLabel = asset.structure === "distribution" ? "DIST" : asset.structure === "accumulation" ? "ACC" : "PREFILTER";
     const structureClass = asset.structure === "distribution" ? "distribution" : asset.structure === "accumulation" ? "accumulation" : "provisional";
     const assetRow = `
-      <tr data-symbol="${asset.symbol}" class="${selected.symbol === asset.symbol ? "selected" : ""}" aria-expanded="${currentView === "scanner" && expandedScannerSymbol === asset.symbol}">
+      <tr data-symbol="${asset.symbol}" class="${selected.symbol === asset.symbol ? "selected" : ""}" aria-expanded="${(currentView === "scanner" && expandedScannerSymbol === asset.symbol) || (currentView === "watchlist" && expandedWatchlistSymbol === asset.symbol)}">
         <td><div class="asset-cell">
           <button class="watch-toggle ${watched ? "watched" : ""}" data-watch="${asset.symbol}" aria-label="${watched ? "Remove" : "Add"} ${asset.symbol} ${watched ? "from" : "to"} watchlist">${watched ? "◆" : "◇"}</button>
           <span class="coin-badge ${asset.symbol.toLowerCase()}">${asset.symbol[0]}</span>
@@ -276,18 +280,25 @@ function renderRows(openInlineChart = true) {
     const inlineChart = currentView === "scanner" && expandedScannerSymbol === asset.symbol
       ? `<tr class="inline-chart-row" data-chart-for="${asset.symbol}"><td colspan="6"><div class="inline-chart-shell"><div class="inline-chart-mount"></div></div></td></tr>`
       : "";
-    return assetRow + inlineChart;
+    const watchlistInline = currentView === "watchlist" && expandedWatchlistSymbol === asset.symbol
+      ? `<tr class="watch-inline-row" data-watch-chart-for="${asset.symbol}"><td colspan="6"><div class="watch-inline-shell"><div class="watch-alpha-card">${renderWatchlistAlphaScore(asset)}</div><div class="watch-inline-mount"></div></div></td></tr>`
+      : "";
+    return assetRow + inlineChart + watchlistInline;
   }).join("");
 
-  const inlineMount = qs(".inline-chart-mount");
+  const inlineMount = qs(".inline-chart-mount") || qs(".watch-inline-mount");
   if (inlineMount && chartPanel) {
     inlineMount.append(chartPanel);
-    if (openInlineChart) qs(".inline-chart-shell")?.classList.add("open");
+    if (openInlineChart) {
+      qs(".inline-chart-shell")?.classList.add("open");
+      qs(".watch-inline-shell")?.classList.add("open");
+    }
   }
 
   qsa("#opportunityRows tr[data-symbol]").forEach(row => {
     row.onclick = () => {
       if (currentView === "scanner") toggleScannerChart(row.dataset.symbol);
+      else if (currentView === "watchlist") toggleWatchlistChart(row.dataset.symbol);
       else selectAsset(row.dataset.symbol);
     };
   });
@@ -303,6 +314,10 @@ function renderRows(openInlineChart = true) {
 function toggleWatchlist(symbol) {
   if (watchlist.includes(symbol)) {
     watchlist = watchlist.filter(item => item !== symbol);
+    if (expandedWatchlistSymbol === symbol) {
+      expandedWatchlistSymbol = null;
+      watchlistToggleToken += 1;
+    }
     showToast(`${symbol} removed`, "Your watchlist has been updated.", "◇");
   } else {
     watchlist = [...watchlist, symbol];
@@ -612,6 +627,99 @@ function toggleScannerChart(symbol) {
       requestAnimationFrame(() => {
         if (token !== scannerToggleToken) return;
         qs(".inline-chart-shell")?.classList.add("open");
+        restoreScrollPosition(scrollTop, scrollLeft);
+      });
+    }
+  };
+
+  if (openShell) {
+    openShell.classList.remove("open");
+    restoreScrollPosition(scrollTop, scrollLeft);
+    window.setTimeout(commitToggle, 220);
+  } else {
+    commitToggle();
+  }
+}
+
+function findAlphaScore(symbol) {
+  return alphaRankings.find(item => item.symbol === symbol) || watchlistAlphaScores.get(symbol);
+}
+
+function ensureWatchlistAlphaScore(asset) {
+  if (!asset || findAlphaScore(asset.symbol) || watchlistAlphaLoading.has(asset.symbol)) return;
+  watchlistAlphaLoading.add(asset.symbol);
+  (async () => {
+    try {
+      const payload = await getStructurePayload(asset.symbol, STRUCTURE_INTERVAL, 60_000);
+      applyStructureEstimate(asset, payload);
+      asset.price = payload.candles.at(-1).close;
+      asset.support = payload.estimate.support;
+      asset.resistance = payload.estimate.resistance;
+    } catch {
+      // Alpha scoring can still attempt to run from the latest known scanner state.
+    }
+    return analyzeAlphaAsset(asset);
+  })()
+    .then(result => {
+      watchlistAlphaScores.set(asset.symbol, result);
+    })
+    .catch(error => {
+      watchlistAlphaScores.set(asset.symbol, { symbol: asset.symbol, error });
+    })
+    .finally(() => {
+      watchlistAlphaLoading.delete(asset.symbol);
+      if (currentView === "watchlist" && expandedWatchlistSymbol === asset.symbol) renderRows(false);
+    });
+}
+
+function renderWatchlistAlphaScore(asset) {
+  const alpha = findAlphaScore(asset.symbol);
+  if (!alpha) {
+    ensureWatchlistAlphaScore(asset);
+    return `<div class="watch-alpha-loading"><span class="pulse"></span><div><strong>${alphaCopy("Calculating Alpha score", "Alpha 점수 계산 중")}</strong><small>${alphaCopy("Using the same trend, VWAP, and volume dry-up model as Alpha Rank.", "Alpha Rank와 같은 추세, VWAP, 거래량 고갈 모델을 사용합니다.")}</small></div></div>`;
+  }
+  if (alpha.error) {
+    return `<div class="watch-alpha-loading warning"><span>!</span><div><strong>${alphaCopy("Alpha score unavailable", "Alpha 점수 없음")}</strong><small>${alphaCopy("Live higher-timeframe data was not available for this symbol.", "해당 종목의 상위 시간대 실시간 데이터를 불러오지 못했습니다.")}</small></div></div>`;
+  }
+  const sideLabel = alpha.side === "short"
+    ? alphaCopy("Short", "숏")
+    : alpha.side === "long"
+      ? alphaCopy("Long", "롱")
+      : alphaCopy("Neutral", "중립");
+  const tierLabel = alpha.targetTier === "confirmed"
+    ? alphaCopy("Confirmed", "확정")
+    : alpha.targetTier === "developing"
+      ? alphaCopy("Developing", "진행")
+      : alphaCopy("Watch only", "관찰");
+  return `<div class="watch-alpha-summary ${alpha.side || "neutral"}">
+    <span class="watch-alpha-total"><strong>${alpha.total.toFixed(1)}</strong><small>/100</small></span>
+    <div class="watch-alpha-main">
+      <strong>Alpha Rank Score · Phase ${alpha.phase || asset.phase} · ${sideLabel}</strong>
+      <small>${tierLabel}${alpha.structureConflict ? ` · ${alphaCopy("trend conflict penalty applied", "추세 충돌 감점 적용")}` : ""}</small>
+    </div>
+    <span><small>${alphaCopy("Trend", "추세")}</small><b>${alpha.trend.score.toFixed(0)}/50</b></span>
+    <span><small>VWAP</small><b>${alpha.proximity.score.toFixed(1)}/30</b></span>
+    <span><small>${alphaCopy("Dry-up", "고갈")}</small><b>${alpha.depletion.score.toFixed(1)}/20</b></span>
+  </div>`;
+}
+
+function toggleWatchlistChart(symbol) {
+  const scrollTop = window.scrollY;
+  const scrollLeft = window.scrollX;
+  const sameSymbol = expandedWatchlistSymbol === symbol;
+  const openShell = qs(".watch-inline-shell.open");
+  const token = ++watchlistToggleToken;
+
+  const commitToggle = () => {
+    if (token !== watchlistToggleToken) return;
+    expandedWatchlistSymbol = sameSymbol ? null : symbol;
+    if (!sameSymbol) selectAsset(symbol, false);
+    renderRows(false);
+    restoreScrollPosition(scrollTop, scrollLeft);
+    if (!sameSymbol) {
+      requestAnimationFrame(() => {
+        if (token !== watchlistToggleToken) return;
+        qs(".watch-inline-shell")?.classList.add("open");
         restoreScrollPosition(scrollTop, scrollLeft);
       });
     }
@@ -1452,6 +1560,10 @@ function setActiveSetup(view, refresh = true) {
 function setView(view) {
   if (!VIEW_COPY[view]) return;
   if (view !== "scanner") expandedScannerSymbol = null;
+  if (view !== "watchlist") {
+    expandedWatchlistSymbol = null;
+    watchlistToggleToken += 1;
+  }
   if (view !== "alpha") {
     expandedAlphaSymbol = null;
     alphaToggleToken += 1;
