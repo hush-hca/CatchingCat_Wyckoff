@@ -8,6 +8,8 @@
     "Watchlist": "관심종목",
     "Edge": "엣지",
     "Alpha Rank": "알파 랭크",
+    "What Alpha Rank means": "Alpha Rank 의미",
+    "Alpha Rank is a priority score for Phase C/D candidates. Higher rank means the setup has clearer 1H/4H trend alignment, tighter Session VWAP proximity, and stronger volume dry-up, so it is more worth watching first.": "Alpha Rank는 Phase C/D 후보의 우선순위 점수입니다. 순위가 높을수록 1H/4H 추세 정렬이 더 선명하고, Session VWAP에 더 가깝고, 거래량 고갈이 더 뚜렷해서 먼저 관찰할 가치가 높다는 뜻입니다.",
     "Setup": "셋업",
     "Discipline": "매매 원칙",
     "Pre-trade check": "진입 전 체크",
