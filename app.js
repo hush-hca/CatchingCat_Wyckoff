@@ -1560,6 +1560,29 @@ function renderLiquidationMap() {
   </svg>`;
 }
 
+async function refreshLiquidationMap() {
+  const button = qs("#refreshLiquidationBtn");
+  const symbol = liquidationSymbol.replace(/USDT$/, "");
+  button?.setAttribute("disabled", "");
+  if (button) button.textContent = "Refreshing...";
+  try {
+    const response = await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${symbol}USDT`, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error("liquidation ticker unavailable");
+    const row = await response.json();
+    const price = Number(row.lastPrice);
+    if (Number.isFinite(price) && price > 0) liquidationLivePrices.set(symbol, price);
+    renderLiquidationMap();
+  } catch {
+    renderLiquidationMap();
+    showToast("Liquidation Map refreshed", "Live price was unavailable, so the current cached price was reused.", "↻");
+  } finally {
+    if (button) {
+      button.textContent = "Refresh";
+      button.removeAttribute("disabled");
+    }
+  }
+}
+
 function setLiquidationRange(start, end) {
   const width = Math.max(20, Math.min(100, end - start));
   let nextStart = Math.max(0, Math.min(100 - width, start));
@@ -2302,6 +2325,7 @@ qs("#liqTimeframeSelect").onchange = event => {
   liquidationTimeframe = event.target.value;
   renderLiquidationMap();
 };
+qs("#refreshLiquidationBtn").onclick = () => refreshLiquidationMap();
 qs("#liqRangeStart").oninput = event => {
   setLiquidationRange(Math.min(Number(event.target.value), liquidationRange.end - 20), liquidationRange.end);
   renderLiquidationMap();

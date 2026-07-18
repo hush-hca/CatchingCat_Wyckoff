@@ -19,6 +19,8 @@
     "High": "높음",
     "Medium": "중간",
     "Low": "낮음",
+    "Refresh": "새로고침",
+    "Refreshing...": "새로고침 중...",
     "Watchlist": "관심종목",
     "Edge": "엣지",
     "Alpha Rank": "알파 랭크",

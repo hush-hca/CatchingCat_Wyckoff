@@ -235,6 +235,8 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liquidation-controls { display:flex;gap:8px;align-items:center;margin-bottom:12px; }
 .liquidation-controls label { display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em; }
 .liquidation-controls select { min-width:108px;height:34px;border:1px solid var(--line);border-radius:8px;background:#08110e;color:var(--text);font:600 10px Manrope;padding:0 28px 0 11px;outline:none; }
+.liquidation-refresh { align-self:flex-end;height:34px;padding:0 14px;font-size:10px; }
+.liquidation-refresh:disabled { opacity:.5;cursor:wait; }
 .liquidation-chart-card { position:relative;border:1px solid var(--line);border-radius:14px;background:#07110e;padding:16px 16px 14px;overflow:hidden; }
 .liquidation-legend { position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:18px;color:#93a79d;font-size:10px;white-space:nowrap; }
 .liquidation-legend button { display:flex;align-items:center;gap:6px;border:0;border-radius:999px;background:rgba(190,225,209,.06);color:inherit;font:700 10px Manrope;padding:5px 9px;cursor:pointer;opacity:.42;transition:.16s; }
