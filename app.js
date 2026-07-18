@@ -16,6 +16,7 @@ const VIEW_COPY = {
   dashboard: ["", ""],
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
+  liquidation: ["Liquidation Map", "Explore liquidation clusters by project, timeframe, leverage distance, and cumulative pressure."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
   alpha: ["Alpha Rank", "Confirmed Phase C/D structures ranked by trend clarity, VWAP precision, and volume depletion."],
   setup: ["Setup", "Predefined trading setups ranked by structural and volume confirmation."],
@@ -60,6 +61,9 @@ let activeSetupView = "setup1";
 let setup2Rankings = [];
 let setup3Rankings = [];
 let setup2VolumeSort = "desc";
+let liquidationSymbol = "BTC";
+let liquidationTimeframe = "12h";
+let liquidationRange = { start: 0, end: 100 };
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -1375,6 +1379,151 @@ function renderSparkline(values) {
   </svg>`;
 }
 
+function moneyAxis(value, decimals = 0) {
+  if (value >= 1_000_000_000) return `${(value / 1_000_000_000).toFixed(decimals)}B`;
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(decimals)}M`;
+  return `${value.toFixed(0)}`;
+}
+
+function liquidationSeed(symbol, timeframe) {
+  return `${symbol}${timeframe}`.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
+}
+
+function getLiquidationAsset() {
+  const symbol = liquidationSymbol.replace(/USDT$/, "");
+  const fromUniverse = assets.find(asset => asset.symbol === symbol);
+  if (fromUniverse) return fromUniverse;
+  const fallbackPrice = symbol === "BTC" ? 64132 : symbol === "ETH" ? 3384 : selected.price;
+  return { symbol, name: symbol, price: fallbackPrice, change: 0, rvol: 2.4 };
+}
+
+function syncLiquidationControls() {
+  const select = qs("#liqSymbolSelect");
+  if (!select) return;
+  const current = liquidationSymbol.replace(/USDT$/, "");
+  const symbols = [...new Set(["BTC", "ETH", ...assets.map(asset => asset.symbol)])].slice(0, 80);
+  select.innerHTML = symbols.map(symbol => `<option value="${escapeHtml(symbol)}">${escapeHtml(symbol)}USDT</option>`).join("");
+  liquidationSymbol = symbols.includes(current) ? current : symbols[0] || "BTC";
+  select.value = liquidationSymbol;
+  const timeframe = qs("#liqTimeframeSelect");
+  if (timeframe) timeframe.value = liquidationTimeframe;
+}
+
+function buildLiquidationData(asset, timeframe) {
+  const seed = liquidationSeed(asset.symbol, timeframe);
+  const current = Number(asset.price) || 64132;
+  const spanMap = { "15m": 0.018, "1h": 0.035, "4h": 0.065, "12h": 0.095, "1D": 0.14, "1W": 0.24 };
+  const span = spanMap[timeframe] || 0.055;
+  const bars = [];
+  for (let index = -60; index <= 60; index += 1) {
+    const distance = Math.abs(index) / 60;
+    const sideBias = index < 0 ? 1.04 : 0.96;
+    const wave = 0.62 + 0.38 * Math.sin((index + seed) * 0.31) ** 2;
+    const clusterA = Math.exp(-((distance - 0.12) ** 2) / 0.006) * 165;
+    const clusterB = Math.exp(-((distance - 0.32) ** 2) / 0.012) * 74;
+    const clusterC = Math.exp(-((distance - 0.72) ** 2) / 0.018) * 35;
+    const noise = ((seed + index * 17) % 19) / 19 * 14;
+    const volumeM = Math.min(248, Math.max(1.2, (clusterA + clusterB + clusterC + noise) * wave * sideBias));
+    const leverage = distance <= 0.22 ? "high" : distance <= 0.5 ? "medium" : "low";
+    bars.push({
+      price: current * (1 + index / 60 * span),
+      distance,
+      side: index < 0 ? "short" : index > 0 ? "long" : "current",
+      leverage,
+      volume: volumeM * 1_000_000
+    });
+  }
+  return bars;
+}
+
+function renderLiquidationMap() {
+  const chart = qs("#liquidationChart");
+  const mini = qs("#liqMiniMap");
+  if (!chart || !mini) return;
+  syncLiquidationControls();
+  const asset = getLiquidationAsset();
+  const current = Number(asset.price) || 64132;
+  const bars = buildLiquidationData(asset, liquidationTimeframe);
+  const startIndex = Math.floor((bars.length - 1) * liquidationRange.start / 100);
+  const endIndex = Math.ceil((bars.length - 1) * liquidationRange.end / 100);
+  const visible = bars.slice(startIndex, Math.max(startIndex + 12, endIndex + 1));
+  const W = 1180;
+  const H = 560;
+  const M = { top: 76, right: 68, bottom: 54, left: 66 };
+  const innerW = W - M.left - M.right;
+  const innerH = H - M.top - M.bottom;
+  const minPrice = visible[0]?.price || current * 0.94;
+  const maxPrice = visible.at(-1)?.price || current * 1.06;
+  const x = price => M.left + ((price - minPrice) / Math.max(maxPrice - minPrice, 1)) * innerW;
+  const barWidth = Math.max(2.5, innerW / visible.length * 0.58);
+  const barY = volume => M.top + innerH - Math.min(volume / 250_000_000, 1) * innerH;
+  const cumY = volume => M.top + innerH - Math.min(volume / 7_000_000_000, 1) * innerH;
+  const currentX = x(current);
+  const colors = { low: "#6797ff", medium: "#a889ff", high: "#ff9148" };
+  const gridLeft = [0, 50, 100, 150, 200, 250];
+  const gridRight = [0, 1, 2, 3, 4, 5, 6, 7];
+  const shortBars = visible.filter(item => item.price <= current).sort((a, b) => a.price - b.price);
+  const longBars = visible.filter(item => item.price >= current).sort((a, b) => a.price - b.price);
+  let shortTotal = 0;
+  const shortFromCenter = [...shortBars].sort((a, b) => b.price - a.price).map(item => {
+    shortTotal += item.volume * 0.032;
+    return { price: item.price, value: Math.min(shortTotal, 7_000_000_000) };
+  });
+  const shortPoints = shortFromCenter.reverse();
+  let longTotal = 0;
+  const longPoints = longBars.map(item => {
+    longTotal += item.volume * 0.031;
+    return { price: item.price, value: Math.min(longTotal, 7_000_000_000) };
+  });
+  const linePath = points => {
+    if (!points.length) return "";
+    const mapped = points.map(point => ({ x: x(point.price), y: cumY(point.value) }));
+    return mapped.map((point, index) => {
+      if (!index) return `M${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+      const previous = mapped[index - 1];
+      const controlX = (previous.x + point.x) / 2;
+      return `C${controlX.toFixed(1)} ${previous.y.toFixed(1)} ${controlX.toFixed(1)} ${point.y.toFixed(1)} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    }).join(" ");
+  };
+  const areaPath = points => points.length
+    ? `${linePath(points)} L${x(points.at(-1).price).toFixed(1)} ${M.top + innerH} L${x(points[0].price).toFixed(1)} ${M.top + innerH} Z`
+    : "";
+  const priceTicks = Array.from({ length: 8 }, (_, index) => minPrice + (maxPrice - minPrice) * index / 7);
+  qs("#liqCurrentPrice").textContent = `Current Price : ${Math.round(current).toLocaleString()}`;
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <defs>
+      <marker id="liqArrow" markerWidth="8" markerHeight="8" refX="4" refY="3" orient="auto"><path d="M0,6 L4,0 L8,6" fill="#ff5151"/></marker>
+    </defs>
+    <rect x="0" y="0" width="${W}" height="${H}" rx="18" class="liq-bg"/>
+    ${gridLeft.map(value => {
+      const y = M.top + innerH - value / 250 * innerH;
+      return `<g class="liq-grid"><line x1="${M.left}" x2="${W - M.right}" y1="${y}" y2="${y}"/><text x="${M.left - 10}" y="${y + 4}" text-anchor="end">${value ? value.toFixed(2) + "M" : "0"}</text></g>`;
+    }).join("")}
+    ${gridRight.map(value => {
+      const y = M.top + innerH - value / 7 * innerH;
+      return `<text class="liq-axis-right" x="${W - M.right + 10}" y="${y + 4}">${value ? value.toFixed(2) + "B" : "0"}</text>`;
+    }).join("")}
+    <text class="liq-zone short-zone" x="${M.left + innerW * 0.22}" y="${M.top + 18}">Short liquidation zone</text>
+    <text class="liq-zone long-zone" x="${M.left + innerW * 0.78}" y="${M.top + 18}" text-anchor="end">Long liquidation zone</text>
+    <path class="liq-area short" d="${areaPath(shortPoints)}"/>
+    <path class="liq-area long" d="${areaPath(longPoints)}"/>
+    ${visible.map(item => `<rect class="liq-bar ${item.leverage}" x="${(x(item.price) - barWidth / 2).toFixed(1)}" y="${barY(item.volume).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${(M.top + innerH - barY(item.volume)).toFixed(1)}" fill="${colors[item.leverage]}"/>`).join("")}
+    <path class="liq-line short" d="${linePath(shortPoints)}"/>
+    <path class="liq-line long" d="${linePath(longPoints)}"/>
+    ${Number.isFinite(currentX) && currentX >= M.left && currentX <= W - M.right ? `<line class="liq-current-line" x1="${currentX.toFixed(1)}" x2="${currentX.toFixed(1)}" y1="${M.top + innerH}" y2="${M.top + 8}" marker-end="url(#liqArrow)"/><text class="liq-current-label" x="${currentX.toFixed(1)}" y="${M.top - 6}" text-anchor="middle">Current Price : ${Math.round(current).toLocaleString()}</text>` : ""}
+    ${priceTicks.map(price => `<text class="liq-price-tick" x="${x(price).toFixed(1)}" y="${H - 20}" text-anchor="middle">${Math.round(price).toLocaleString()}</text>`).join("")}
+  </svg>`;
+  mini.innerHTML = `<svg viewBox="0 0 ${W} 58" preserveAspectRatio="none">
+    <rect x="0" y="0" width="${W}" height="58" rx="9" class="liq-mini-bg"/>
+    ${bars.map((item, index) => {
+      const bx = index / Math.max(bars.length - 1, 1) * W;
+      const bh = Math.max(2, item.volume / 250_000_000 * 42);
+      return `<rect x="${bx.toFixed(1)}" y="${(50 - bh).toFixed(1)}" width="${Math.max(2, W / bars.length * .62).toFixed(1)}" height="${bh.toFixed(1)}" class="liq-mini-bar"/>`;
+    }).join("")}
+    <rect class="liq-window" x="${(liquidationRange.start / 100 * W).toFixed(1)}" y="4" width="${((liquidationRange.end - liquidationRange.start) / 100 * W).toFixed(1)}" height="50" rx="7"/>
+  </svg>`;
+}
+
 async function analyze2BlocksAsset(asset) {
   const [candles, hourlyCandles] = await Promise.all([
     fetchPublicKlines(asset.symbol, "5m", 96),
@@ -1754,6 +1903,7 @@ function setView(view) {
     renderSetupRank();
     if (liveUniverseReady && activeSetupView !== "setup3") refreshSetupRank();
   }
+  if (view === "liquidation") renderLiquidationMap();
 }
 
 function showToast(title, detail, icon = "✓") {
@@ -1939,12 +2089,14 @@ async function refreshLiveData() {
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (currentView === "alpha") refreshAlphaRank();
   if (currentView === "setup" && activeSetupView !== "setup3") refreshSetupRank();
+  if (currentView === "liquidation") renderLiquidationMap();
 }
 
 function renderAll() {
   qs("#universeCount").textContent = assets.length;
   renderTickers();
   renderFire();
+  renderLiquidationMap();
   selectAsset(selected.symbol);
 }
 
@@ -2014,6 +2166,40 @@ if (qs("#alphaRankBtn")) qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
+qs("#liqSymbolSelect").onchange = event => {
+  liquidationSymbol = event.target.value;
+  renderLiquidationMap();
+};
+qs("#liqTimeframeSelect").onchange = event => {
+  liquidationTimeframe = event.target.value;
+  renderLiquidationMap();
+};
+qs("#liqRangeStart").oninput = event => {
+  liquidationRange.start = Math.min(Number(event.target.value), liquidationRange.end - 20);
+  event.target.value = liquidationRange.start;
+  renderLiquidationMap();
+};
+qs("#liqRangeEnd").oninput = event => {
+  liquidationRange.end = Math.max(Number(event.target.value), liquidationRange.start + 20);
+  event.target.value = liquidationRange.end;
+  renderLiquidationMap();
+};
+qs("#liquidationNavigator").onwheel = event => {
+  event.preventDefault();
+  const width = liquidationRange.end - liquidationRange.start;
+  const delta = event.deltaY > 0 ? 6 : -6;
+  const nextWidth = Math.max(20, Math.min(100, width + delta));
+  const center = (liquidationRange.start + liquidationRange.end) / 2;
+  liquidationRange.start = Math.max(0, center - nextWidth / 2);
+  liquidationRange.end = Math.min(100, center + nextWidth / 2);
+  if (liquidationRange.end - liquidationRange.start < nextWidth) {
+    if (liquidationRange.start === 0) liquidationRange.end = nextWidth;
+    if (liquidationRange.end === 100) liquidationRange.start = 100 - nextWidth;
+  }
+  qs("#liqRangeStart").value = liquidationRange.start;
+  qs("#liqRangeEnd").value = liquidationRange.end;
+  renderLiquidationMap();
+};
 function openFullScanner() {
   setView("scanner");
   requestAnimationFrame(() => {
@@ -2035,6 +2221,7 @@ window.addEventListener("catchingcat:language", () => {
   loadSelectedChart();
   renderAlphaRank();
   renderSetupRank();
+  renderLiquidationMap();
 });
 
 updateSortControls();

@@ -30,6 +30,7 @@
         <button class="nav-item active" data-view="dashboard"><span>⌁</span> Dashboard</button>
         <button class="nav-item" data-view="volume"><span>↗</span> Volume Fire <em id="navIgnitionCount">12</em></button>
         <button class="nav-item" data-view="scanner"><span>◎</span> Wyckoff Scanner</button>
+        <button class="nav-item" data-view="liquidation"><span>▥</span> Liquidation Map</button>
         <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist <em id="watchCount">3</em></button>
         <p>Setup</p>
         <button class="nav-item" data-view="alpha"><span>α</span> Alpha Rank</button>
@@ -215,6 +216,42 @@
           <div class="setup-list" id="setupList"></div>
         </article>
 
+        <article class="panel liquidation-panel" id="liquidationPanel">
+          <div class="liquidation-controls">
+            <label>
+              <span>Project</span>
+              <select id="liqSymbolSelect">
+                <option value="BTC">BTCUSDT</option>
+              </select>
+            </label>
+            <label>
+              <span>Timeframe</span>
+              <select id="liqTimeframeSelect">
+                <option>15m</option>
+                <option>1h</option>
+                <option>4h</option>
+                <option selected>12h</option>
+                <option>1D</option>
+                <option>1W</option>
+              </select>
+            </label>
+          </div>
+          <div class="liquidation-chart-card">
+            <div class="liquidation-legend" aria-label="Liquidation leverage legend">
+              <span><i class="liq-low"></i> Low leverage</span>
+              <span><i class="liq-medium"></i> Medium leverage</span>
+              <span><i class="liq-high"></i> High leverage</span>
+            </div>
+            <div class="liquidation-current" id="liqCurrentPrice">Current Price : 64,132</div>
+            <div class="liquidation-chart" id="liquidationChart" role="img" aria-label="Liquidation map chart"></div>
+            <div class="liquidation-navigator" id="liquidationNavigator">
+              <div class="liq-mini-map" id="liqMiniMap"></div>
+              <input id="liqRangeStart" type="range" min="0" max="80" value="0" aria-label="Navigator start" />
+              <input id="liqRangeEnd" type="range" min="20" max="100" value="100" aria-label="Navigator end" />
+            </div>
+          </div>
+        </article>
+
         <article class="panel guide-panel" id="guidePanel" lang="ko">
           <div class="guide-hero">
             <div>
@@ -343,6 +380,6 @@
 
     <script src="i18n.js?v=2blocks-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=2blocks-manual-refresh-1"></script>
+    <script src="app.js?v=liquidation-map-1"></script>
   </body>
 </html>
