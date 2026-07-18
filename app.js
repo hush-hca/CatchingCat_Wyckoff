@@ -1553,6 +1553,12 @@ function setActiveSetup(view, refresh = true) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
+  qsa("[data-setup-nav]").forEach(button => {
+    const active = currentView === "setup" && button.dataset.setupNav === view;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
   renderSetupRank();
   if (refresh && liveUniverseReady) refreshSetupRank();
 }
@@ -1580,7 +1586,7 @@ function setView(view) {
   qs("#viewTitle").textContent = VIEW_COPY[view][0];
   qs("#viewSubtitle").textContent = VIEW_COPY[view][1];
   qsa(".nav-item[data-view]").forEach(button => {
-    const active = button.dataset.view === view;
+    const active = button.dataset.view === view && (!button.dataset.setupNav || button.dataset.setupNav === activeSetupView);
     button.classList.toggle("active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
@@ -1703,7 +1709,17 @@ qsa(".timeframes button").forEach(button => {
   };
 });
 qsa(".nav-item[data-view]").forEach(button => {
-  button.onclick = () => setView(button.dataset.view);
+  button.onclick = () => {
+    if (button.dataset.setupNav) {
+      if (currentView === "setup") setActiveSetup(button.dataset.setupNav);
+      else {
+        setActiveSetup(button.dataset.setupNav, false);
+        setView("setup");
+      }
+      return;
+    }
+    setView(button.dataset.view);
+  };
 });
 qs(".brand").onclick = event => {
   event.preventDefault();
