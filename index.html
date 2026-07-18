@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=liquidation-sim-note-1" />
+    <link rel="stylesheet" href="styles.css?v=liquidation-orderbook-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -237,13 +237,13 @@
             <button class="ghost-button liquidation-refresh" id="refreshLiquidationBtn" type="button">Refresh</button>
           </div>
           <div class="liquidation-data-note">
-            Simulated liquidation density map · price is synced from Binance Futures mark price, but liquidation bars are modeled estimates, not live exchange liquidation book data.
+            Actual Binance Futures order book liquidity map · bars use live bid/ask depth quote volume. Color bands show distance from current price, not real leverage or liquidation-order data.
           </div>
             <div class="liquidation-chart-card">
-              <div class="liquidation-legend" aria-label="Liquidation leverage legend">
-              <button class="active" type="button" data-liq-leverage="low"><i class="liq-low"></i> Low leverage</button>
-              <button class="active" type="button" data-liq-leverage="medium"><i class="liq-medium"></i> Medium leverage</button>
-              <button class="active" type="button" data-liq-leverage="high"><i class="liq-high"></i> High leverage</button>
+              <div class="liquidation-legend" aria-label="Order book liquidity distance legend">
+              <button class="active" type="button" data-liq-leverage="low"><i class="liq-low"></i> Far liquidity</button>
+              <button class="active" type="button" data-liq-leverage="medium"><i class="liq-medium"></i> Mid liquidity</button>
+              <button class="active" type="button" data-liq-leverage="high"><i class="liq-high"></i> Near liquidity</button>
               </div>
               <div class="liquidation-current" id="liqCurrentPrice">Current Price : 64,132</div>
             <div class="liquidation-chart" id="liquidationChart" role="img" aria-label="Liquidation map chart">
@@ -382,8 +382,8 @@
       </form>
     </dialog>
 
-    <script src="i18n.js?v=liquidation-sim-note-1"></script>
+    <script src="i18n.js?v=liquidation-orderbook-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=liquidation-sim-note-1"></script>
+    <script src="app.js?v=liquidation-orderbook-1"></script>
   </body>
 </html>

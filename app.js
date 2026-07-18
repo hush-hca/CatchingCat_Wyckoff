@@ -16,7 +16,7 @@ const VIEW_COPY = {
   dashboard: ["", ""],
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
-  liquidation: ["Liquidation Map", "Explore liquidation clusters by project, timeframe, leverage distance, and cumulative pressure."],
+  liquidation: ["Liquidation Map", "Explore live Binance Futures order book liquidity by project and price level."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
   alpha: ["Alpha Rank", "Confirmed Phase C/D structures ranked by trend clarity, VWAP precision, and volume depletion."],
   setup: ["Setup", "Predefined trading setups ranked by structural and volume confirmation."],
@@ -68,6 +68,7 @@ let liquidationVisibleLeverage = { low: true, medium: true, high: true };
 let liquidationChartState = null;
 let liquidationDragState = null;
 const liquidationLivePrices = new Map();
+const liquidationOrderBooks = new Map();
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -1397,8 +1398,13 @@ function formatLiquidationPrice(value) {
   return value.toFixed(5);
 }
 
-function liquidationSeed(symbol, timeframe) {
-  return `${symbol}${timeframe}`.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
+function niceAxisMax(value) {
+  const amount = Math.max(Number(value) || 0, 1);
+  const exponent = Math.floor(Math.log10(amount));
+  const base = 10 ** exponent;
+  const scaled = amount / base;
+  const nice = scaled <= 2 ? 2 : scaled <= 5 ? 5 : 10;
+  return nice * base;
 }
 
 function getLiquidationAsset() {
@@ -1423,6 +1429,20 @@ async function fetchLiquidationCurrentPrice(symbol) {
   const price = Number(tickerData.price);
   if (!Number.isFinite(price) || price <= 0) throw new Error("liquidation price unavailable");
   return price;
+}
+
+async function fetchLiquidationOrderBook(symbol) {
+  const response = await fetch(`https://fapi.binance.com/fapi/v1/depth?symbol=${symbol}USDT&limit=1000`, { signal: AbortSignal.timeout(7000) });
+  if (!response.ok) throw new Error("order book unavailable");
+  const book = await response.json();
+  const parseSide = side => (book[side] || [])
+    .map(([price, quantity]) => ({ price: Number(price), quantity: Number(quantity) }))
+    .filter(level => Number.isFinite(level.price) && level.price > 0 && Number.isFinite(level.quantity) && level.quantity > 0);
+  return {
+    bids: parseSide("bids"),
+    asks: parseSide("asks"),
+    updatedAt: Date.now()
+  };
 }
 
 function syncLiquidationControls() {
@@ -1460,41 +1480,52 @@ function setLiquidationSymbolFromSearch(value) {
   void refreshLiquidationMap({ silent: true });
 }
 
-function buildLiquidationData(asset, timeframe) {
-  const seed = liquidationSeed(asset.symbol, timeframe);
+function getOrderBookPriceStep(current) {
+  if (current >= 1000) return 1;
+  if (current >= 100) return 0.1;
+  if (current >= 10) return 0.01;
+  if (current >= 1) return 0.001;
+  return 0.0001;
+}
+
+function classifyOrderBookBand(price, current) {
+  const distance = Math.abs(price / current - 1);
+  if (distance <= 0.0035) return "high";
+  if (distance <= 0.01) return "medium";
+  return "low";
+}
+
+function buildLiquidationData(asset) {
   const current = Number(asset.price) || 64132;
-  const priceStep = current >= 1000 ? 10 : current >= 100 ? 1 : current >= 10 ? 0.1 : current >= 1 ? 0.01 : 0.001;
-  const bars = [];
-  for (let index = -60; index <= 60; index += 1) {
-    const distance = Math.abs(index) / 60;
-    const sideBias = index < 0 ? 1.04 : 0.96;
-    const wave = 0.62 + 0.38 * Math.sin((index + seed) * 0.31) ** 2;
-    const clusterA = Math.exp(-((distance - 0.12) ** 2) / 0.006) * 165;
-    const clusterB = Math.exp(-((distance - 0.32) ** 2) / 0.012) * 74;
-    const clusterC = Math.exp(-((distance - 0.72) ** 2) / 0.018) * 35;
-    const noise = ((seed + index * 17) % 19) / 19 * 14;
-    const base = Math.min(248, Math.max(1.2, (clusterA + clusterB + clusterC + noise) * wave * sideBias));
-    const highWeight = Math.exp(-(distance ** 2) / 0.04);
-    const mediumWeight = Math.exp(-((distance - 0.34) ** 2) / 0.08);
-    const lowWeight = Math.exp(-((distance - 0.76) ** 2) / 0.16);
-    const weightTotal = highWeight + mediumWeight + lowWeight || 1;
-    const volumes = {
-      high: base * highWeight / weightTotal * 1_000_000,
-      medium: base * mediumWeight / weightTotal * 1_000_000,
-      low: base * lowWeight / weightTotal * 1_000_000
-    };
-    const price = current + index * priceStep;
-    if (price <= 0) continue;
-    bars.push({
-      levelIndex: index,
+  const symbol = asset.symbol.replace(/USDT$/, "");
+  const book = liquidationOrderBooks.get(symbol);
+  if (!book) return [];
+  const priceStep = getOrderBookPriceStep(current);
+  const decimals = priceStep < 1 ? Math.ceil(Math.abs(Math.log10(priceStep))) : 0;
+  const grouped = new Map();
+  const addLevel = (level, side) => {
+    const price = Math.round(level.price / priceStep) * priceStep;
+    if (!Number.isFinite(price) || price <= 0) return;
+    const key = price.toFixed(decimals);
+    const bucket = grouped.get(key) || {
+      levelIndex: grouped.size,
       price,
-      distance,
-      side: index < 0 ? "short" : index > 0 ? "long" : "current",
-      volumes,
-      volume: volumes.high + volumes.medium + volumes.low
-    });
-  }
-  return bars;
+      side,
+      volumes: { high: 0, medium: 0, low: 0 },
+      volume: 0
+    };
+    const band = classifyOrderBookBand(price, current);
+    const quoteVolume = level.price * level.quantity;
+    bucket.volumes[band] += quoteVolume;
+    bucket.volume += quoteVolume;
+    bucket.side = price < current ? "short" : price > current ? "long" : side;
+    grouped.set(key, bucket);
+  };
+  book.bids.forEach(level => addLevel(level, "short"));
+  book.asks.forEach(level => addLevel(level, "long"));
+  return [...grouped.values()]
+    .sort((left, right) => left.price - right.price)
+    .map((item, index) => ({ ...item, levelIndex: index }));
 }
 
 function renderLiquidationMap() {
@@ -1504,7 +1535,7 @@ function renderLiquidationMap() {
   syncLiquidationControls();
   const asset = getLiquidationAsset();
   const current = Number(asset.price) || 64132;
-  const bars = buildLiquidationData(asset, liquidationTimeframe);
+  const bars = buildLiquidationData(asset);
   const startIndex = Math.floor((bars.length - 1) * liquidationRange.start / 100);
   const endIndex = Math.ceil((bars.length - 1) * liquidationRange.end / 100);
   const visible = bars.slice(startIndex, Math.max(startIndex + 12, endIndex + 1)).map(item => ({
@@ -1522,25 +1553,29 @@ function renderLiquidationMap() {
   const x = price => M.left + ((price - minPrice) / Math.max(maxPrice - minPrice, 1)) * innerW;
   const slotWidth = innerW / Math.max(visible.length - 1, 1);
   const barWidth = Math.max(3.2, Math.min(22, slotWidth * 0.58));
-  const barY = volume => M.top + innerH - Math.min(volume / 250_000_000, 1) * innerH;
-  const barHeight = volume => Math.min(volume / 250_000_000, 1) * innerH;
-  const cumY = volume => M.top + innerH - Math.min(volume / 7_000_000_000, 1) * innerH;
+  const maxBarVolume = Math.max(...visible.map(item => item.activeVolume), 1);
+  const leftAxisMax = niceAxisMax(maxBarVolume);
+  const cumulativeMax = visible.reduce((sum, item) => sum + item.activeVolume, 0);
+  const rightAxisMax = niceAxisMax(Math.max(cumulativeMax, leftAxisMax));
+  const barY = volume => M.top + innerH - Math.min(volume / leftAxisMax, 1) * innerH;
+  const barHeight = volume => Math.min(volume / leftAxisMax, 1) * innerH;
+  const cumY = volume => M.top + innerH - Math.min(volume / rightAxisMax, 1) * innerH;
   const currentX = x(current);
   const colors = { low: "#2762d9", medium: "#9b7ef2", high: "#f2913d" };
-  const gridLeft = [0, 50, 100, 150, 200, 250];
-  const gridRight = [0, 1, 2, 3, 4, 5, 6, 7];
+  const gridLeft = Array.from({ length: 6 }, (_, index) => leftAxisMax * index / 5);
+  const gridRight = Array.from({ length: 8 }, (_, index) => rightAxisMax * index / 7);
   const shortBars = visible.filter(item => item.price <= current).sort((a, b) => a.price - b.price);
   const longBars = visible.filter(item => item.price >= current).sort((a, b) => a.price - b.price);
   let shortTotal = 0;
   const shortFromCenter = [...shortBars].sort((a, b) => b.price - a.price).map(item => {
-    shortTotal += item.activeVolume * 0.032;
-    return { price: item.price, value: Math.min(shortTotal, 7_000_000_000) };
+    shortTotal += item.activeVolume;
+    return { price: item.price, value: Math.min(shortTotal, rightAxisMax) };
   });
   const shortPoints = shortFromCenter.reverse();
   let longTotal = 0;
   const longPoints = longBars.map(item => {
-    longTotal += item.activeVolume * 0.031;
-    return { price: item.price, value: Math.min(longTotal, 7_000_000_000) };
+    longTotal += item.activeVolume;
+    return { price: item.price, value: Math.min(longTotal, rightAxisMax) };
   });
   const linePath = points => {
     if (!points.length) return "";
@@ -1578,12 +1613,12 @@ function renderLiquidationMap() {
     </defs>
     <rect x="0" y="0" width="${W}" height="${H}" rx="18" class="liq-bg"/>
     ${gridLeft.map(value => {
-      const y = M.top + innerH - value / 250 * innerH;
-      return `<g class="liq-grid"><line x1="${M.left}" x2="${W - M.right}" y1="${y}" y2="${y}"/><text x="${M.left - 10}" y="${y + 4}" text-anchor="end">${value ? value.toFixed(2) + "M" : "0"}</text></g>`;
+      const y = M.top + innerH - value / leftAxisMax * innerH;
+      return `<g class="liq-grid"><line x1="${M.left}" x2="${W - M.right}" y1="${y}" y2="${y}"/><text x="${M.left - 10}" y="${y + 4}" text-anchor="end">${value ? moneyAxis(value, 2) : "0"}</text></g>`;
     }).join("")}
     ${gridRight.map(value => {
-      const y = M.top + innerH - value / 7 * innerH;
-      return `<text class="liq-axis-right" x="${W - M.right + 10}" y="${y + 4}">${value ? value.toFixed(2) + "B" : "0"}</text>`;
+      const y = M.top + innerH - value / rightAxisMax * innerH;
+      return `<text class="liq-axis-right" x="${W - M.right + 10}" y="${y + 4}">${value ? moneyAxis(value, 2) : "0"}</text>`;
     }).join("")}
     <path class="liq-area short" d="${areaPath(shortPoints)}"/>
     <path class="liq-area long" d="${areaPath(longPoints)}"/>
@@ -1591,6 +1626,7 @@ function renderLiquidationMap() {
     <path class="liq-line short" d="${linePath(shortPoints)}"/>
     <path class="liq-line long" d="${linePath(longPoints)}"/>
     ${Number.isFinite(currentX) && currentX >= M.left && currentX <= W - M.right ? `<line class="liq-current-line" x1="${currentX.toFixed(1)}" x2="${currentX.toFixed(1)}" y1="${M.top + innerH}" y2="${M.top + 8}" marker-end="url(#liqArrow)"/>` : ""}
+    ${bars.length ? "" : `<text class="liq-empty-state" x="${W / 2}" y="${H / 2}" text-anchor="middle">Click Refresh to load live Binance Futures order book depth.</text>`}
     ${priceTicks.map(price => `<text class="liq-price-tick" x="${x(price).toFixed(1)}" y="${H - 20}" text-anchor="middle">${formatLiquidationPrice(price)}</text>`).join("")}
   </svg><div class="liq-crosshair" id="liqCrosshair" hidden></div><div class="liq-tooltip" id="liqTooltip" hidden></div>`;
   mini.innerHTML = `<svg viewBox="0 0 ${W} 58" preserveAspectRatio="none">
@@ -1599,7 +1635,7 @@ function renderLiquidationMap() {
       const bx = index / Math.max(bars.length - 1, 1) * W;
       const activeVolume = Object.entries(item.volumes).reduce((sum, [leverage, volume]) =>
         sum + (liquidationVisibleLeverage[leverage] ? volume : 0), 0);
-      const bh = Math.max(2, activeVolume / 250_000_000 * 42);
+      const bh = Math.max(2, activeVolume / leftAxisMax * 42);
       return `<rect x="${bx.toFixed(1)}" y="${(50 - bh).toFixed(1)}" width="${Math.max(2, W / bars.length * .62).toFixed(1)}" height="${bh.toFixed(1)}" class="liq-mini-bar"/>`;
     }).join("")}
     <rect class="liq-window" x="${(liquidationRange.start / 100 * W).toFixed(1)}" y="4" width="${((liquidationRange.end - liquidationRange.start) / 100 * W).toFixed(1)}" height="50" rx="7"/>
@@ -1614,12 +1650,16 @@ async function refreshLiquidationMap({ silent = false } = {}) {
     if (button) button.textContent = "Refreshing...";
   }
   try {
-    const price = await fetchLiquidationCurrentPrice(symbol);
+    const [price, orderBook] = await Promise.all([
+      fetchLiquidationCurrentPrice(symbol),
+      fetchLiquidationOrderBook(symbol)
+    ]);
     liquidationLivePrices.set(symbol, price);
+    liquidationOrderBooks.set(symbol, orderBook);
     renderLiquidationMap();
   } catch {
     renderLiquidationMap();
-    if (!silent) showToast("Liquidation Map refreshed", "Binance mark price was unavailable, so the current cached price was reused.", "↻");
+    if (!silent) showToast("Liquidation Map unavailable", "Binance Futures order book data could not be loaded. No synthetic data was substituted.", "⚠️");
   } finally {
     if (!silent && button) {
       button.textContent = "Refresh";
@@ -1642,7 +1682,7 @@ function updateLiquidationHover(event) {
   const chart = qs("#liquidationChart");
   const crosshair = qs("#liqCrosshair");
   const tooltip = qs("#liqTooltip");
-  if (!state || !chart || !crosshair || !tooltip) return;
+  if (!state || !state.visible.length || !chart || !crosshair || !tooltip) return;
   const rect = chart.getBoundingClientRect();
   const localX = event.clientX - rect.left;
   const localY = event.clientY - rect.top;
@@ -1659,19 +1699,19 @@ function updateLiquidationHover(event) {
   qsa(`.liq-bar[data-liq-level="${nearest.levelIndex}"]`).forEach(bar => bar.classList.add("hovered"));
   const shortCumulative = state.visible
     .filter(item => item.price >= nearest.price && item.price <= state.current)
-    .reduce((sum, item) => sum + item.activeVolume * 0.032, 0);
+    .reduce((sum, item) => sum + item.activeVolume, 0);
   const longCumulative = state.visible
     .filter(item => item.price <= nearest.price && item.price >= state.current)
-    .reduce((sum, item) => sum + item.activeVolume * 0.031, 0);
+    .reduce((sum, item) => sum + item.activeVolume, 0);
   const cumulative = nearest.price < state.current ? shortCumulative : longCumulative;
   const leftPercent = Math.max(0, Math.min(100, localX / Math.max(rect.width, 1) * 100));
   crosshair.style.left = `${leftPercent}%`;
   crosshair.hidden = false;
   tooltip.innerHTML = `<strong>${formatLiquidationPrice(nearest.price)}</strong>
-    <span>Cumulative: ${moneyAxis(cumulative, 2)}</span>
-    <span><i class="liq-high"></i> High ${moneyAxis(nearest.volumes.high, 2)}</span>
-    <span><i class="liq-medium"></i> Medium ${moneyAxis(nearest.volumes.medium, 2)}</span>
-    <span><i class="liq-low"></i> Low ${moneyAxis(nearest.volumes.low, 2)}</span>`;
+    <span>Cumulative depth: ${moneyAxis(cumulative, 2)}</span>
+    <span><i class="liq-high"></i> Near ${moneyAxis(nearest.volumes.high, 2)}</span>
+    <span><i class="liq-medium"></i> Mid ${moneyAxis(nearest.volumes.medium, 2)}</span>
+    <span><i class="liq-low"></i> Far ${moneyAxis(nearest.volumes.low, 2)}</span>`;
   tooltip.style.left = `${Math.min(rect.width - 190, Math.max(10, localX + 14))}px`;
   tooltip.style.top = `${Math.min(rect.height - 132, Math.max(58, localY + 12))}px`;
   tooltip.hidden = false;
@@ -2126,9 +2166,14 @@ function indicatorGuideCopy() {
         ["Wyckoff Scanner", [
           ["Price / 24h", "현재가와 24시간 등락률입니다."],
           ["Rel. volume", "현재 참여도가 최근 기준 거래량 대비 얼마나 큰지 보여줍니다."],
-          ["Wyckoff phase", "200캔들 구조 분석으로 추정한 Accumulation/Distribution 단계입니다."],
-          ["Signal", "Spring, breakout, range watch 등 현재 구조에서 관찰할 행동 단서입니다."]
-        ]],
+        ["Wyckoff phase", "200캔들 구조 분석으로 추정한 Accumulation/Distribution 단계입니다."],
+        ["Signal", "Spring, breakout, range watch 등 현재 구조에서 관찰할 행동 단서입니다."]
+      ]],
+      ["Liquidation Map", [
+        ["Live order book", "Binance Futures 공개 depth API의 실제 bid/ask 호가를 가격 × 수량 기준 호가 거래대금으로 집계합니다."],
+        ["Near / Mid / Far", "현재가와의 거리 기준 색상 구간입니다. 실제 레버리지 배율이나 실제 청산 주문을 의미하지 않습니다."],
+        ["Cumulative depth", "현재가에서 선택한 가격대까지 보이는 실제 호가 유동성을 누적한 값입니다."]
+      ]],
         ["Volume Fire", [
           ["RVOL bar", "1분 거래량이 기준선 대비 얼마나 강하게 점화됐는지 빠르게 비교합니다."],
           ["Threshold", "Settings에서 정한 RVOL 기준을 넘으면 ignition으로 집계됩니다."]
@@ -2166,6 +2211,11 @@ function indicatorGuideCopy() {
         ["Rel. volume", "How strong current participation is versus recent baseline volume."],
         ["Wyckoff phase", "The estimated Accumulation/Distribution phase from 200-candle structure analysis."],
         ["Signal", "The current structural clue, such as spring, breakout, or range watch."]
+      ]],
+      ["Liquidation Map", [
+        ["Live order book", "Aggregates actual Binance Futures public depth bid/ask levels as price × quantity quote volume."],
+        ["Near / Mid / Far", "Distance bands from the current price. They are not real leverage multiples or real liquidation orders."],
+        ["Cumulative depth", "Adds the visible real order-book liquidity from the current price to the selected price level."]
       ]],
       ["Volume Fire", [
         ["RVOL bar", "Compares one-minute volume ignition strength across symbols."],
