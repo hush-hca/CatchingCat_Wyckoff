@@ -1357,6 +1357,24 @@ function candleBodyEngulfed(previous, current) {
   return currentBodyLow <= previousBodyLow && currentBodyHigh >= previousBodyHigh;
 }
 
+function renderSparkline(values) {
+  const points = values.filter(Number.isFinite);
+  if (points.length < 2) return "";
+  const width = 120;
+  const height = 34;
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || Math.max(max * 0.001, 1);
+  const path = points.map((value, index) => {
+    const x = points.length === 1 ? 0 : index / (points.length - 1) * width;
+    const y = height - ((value - min) / range * (height - 6) + 3);
+    return `${index ? "L" : "M"}${x.toFixed(1)} ${y.toFixed(1)}`;
+  }).join(" ");
+  return `<svg class="setup3-sparkline" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+    <path d="${path}" />
+  </svg>`;
+}
+
 async function analyze2BlocksAsset(asset) {
   const candles = await fetchPublicKlines(asset.symbol, "5m", 96);
   const completed = candles.filter(candle => candle.time + 5 * 60_000 <= Date.now());
@@ -1388,7 +1406,8 @@ async function analyze2BlocksAsset(asset) {
       confirmationClose: confirmation.close,
       bodyExpansion,
       confirmationMove,
-      quoteVolume
+      quoteVolume,
+      sparkline: completed.slice(Math.max(0, index - 8), index + 2).map(candle => candle.close)
     });
   }
   return signals.slice(-3);
@@ -1493,7 +1512,7 @@ function renderSetup3Rank(openInlineChart = true) {
       <span>${alphaCopy("Trigger time", "발생 시각")}</span>
       <span>${alphaCopy("Price", "가격")}</span>
       <span>${alphaCopy("Confirm move", "확인 상승")}</span>
-      <span>${alphaCopy("Signal", "신호")}</span>
+      <span>${alphaCopy("5m path", "5분 흐름")}</span>
       <span>${alphaCopy("Volume", "거래대금")}</span>
     </div>
     ${setup3Rankings.map((item, index) => {
@@ -1507,7 +1526,7 @@ function renderSetup3Rank(openInlineChart = true) {
         <span class="setup3-time">${triggerTime}</span>
         <strong class="setup3-price">${fmt(item.price)}</strong>
         <span class="setup3-move">+${(item.confirmationMove * 100).toFixed(2)}%</span>
-        <span class="setup3-note">${alphaCopy("Bullish order block engulf + next green close", "상승 Order Block 장악 + 다음 캔들 양봉 마감")} · ${item.bodyExpansion.toFixed(2)}× body</span>
+        <span class="setup3-chart-cell">${renderSparkline(item.sparkline)}</span>
         <strong class="setup2-volume">${compactUsd(item.quoteVolume)}</strong>
       </button>${inlineChart}`;
     }).join("")}
@@ -1768,10 +1787,10 @@ function indicatorGuideCopy() {
           ["VWAP", "현재가가 세션 VWAP에 얼마나 정밀하게 붙어 있는지 평가합니다."],
           ["Dry-up", "참조선 근처에서 현재 거래량이 최근 평균보다 줄어드는지 봅니다."]
         ]],
-        ["Setup 1 / Setup 2", [
-          ["Setup 1", "주간 고점 fakeout과 거래량 divergence, 하락봉 확인 조건을 만족하는 숏 후보 랭킹입니다."],
-          ["Setup 2", "최근 7일 동안 KST 04:00–09:00 구간에서 반복적으로 하락한 스캐너 종목 통계입니다."],
-          ["2Blocks", "5분봉에서 직전 음봉 몸통을 장악한 상승 Order Block과 바로 다음 양봉 확인을 포착합니다."]
+      ["Setup 1 / Setup 2", [
+        ["Setup 1", "Altcoin Fakeout Short 조건입니다. 01 Weekly-high rejection: 고가가 직전 1주 고점 ±0.5% 이내에 닿지만 종가는 그 고점 아래에서 마감해야 하며, 최소 2회 발생해야 합니다. 02 Bullish volume divergence: 실패한 고점 테스트 양봉 이후 2~3개의 양봉 평균 거래량이 이전 거래량의 50% 이하로 급감해야 합니다. 03 Bearish confirmation: 이후 음봉이 나오면 그 음봉 거래량은 직전 3개 캔들 평균 이상이어야 합니다."],
+        ["Setup 2", "KST 04:00~09:00 하락 시간대 조건입니다. 01 최근 완료된 7개 KST 세션을 확인합니다. 02 관측 세션의 과반이 04:00~09:00 구간에서 하락 마감해야 합니다. 03 해당 구간 평균 수익률이 0% 미만이어야 합니다."],
+        ["2Blocks", "5분봉 bullish reversal 조건입니다. 01 직전 캔들은 음봉이어야 합니다. 02 다음 녹색 Bullish Order Block 캔들이 직전 음봉의 몸통을 완전히 감싸야 합니다. 03 바로 다음 5분봉도 양봉으로 마감하면 신호가 확정되며, 가장 최근 발생 신호가 맨 위에 표시됩니다."]
         ]]
       ]
     };
@@ -1807,9 +1826,9 @@ function indicatorGuideCopy() {
         ["Dry-up", "Checks whether current volume is fading near the reference line."]
       ]],
       ["Setup 1 / Setup 2", [
-        ["Setup 1", "Ranks short candidates with weekly-high fakeout, volume divergence, and bearish confirmation."],
-        ["Setup 2", "Shows scanner symbols that repeatedly declined during KST 04:00–09:00 over the last seven sessions."],
-        ["2Blocks", "Captures 5m bullish order block engulfing signals confirmed by the immediate next green candle."]
+        ["Setup 1", "Altcoin Fakeout Short conditions. 01 Weekly-high rejection: the high must come within ±0.5% of the previous one-week high, but the close must finish below that high, at least twice. 02 Bullish volume divergence: after the failed high-test bullish candle, the next 2–3 bullish candles must average 50% or less of that prior volume. 03 Bearish confirmation: when a bearish candle appears after the failed high test, its volume must be greater than or equal to the previous 3-candle average."],
+        ["Setup 2", "KST 04:00–09:00 decline-window conditions. 01 Use the latest seven completed KST sessions. 02 More than half of observed sessions must close lower during 04:00–09:00. 03 The average 04:00–09:00 return must remain below 0%."],
+        ["2Blocks", "5m bullish reversal conditions. 01 The previous candle must be bearish. 02 The next green Bullish Order Block candle must fully engulf the previous red candle body. 03 The immediate next 5m candle must also close green; once confirmed, newest signals are listed first."]
       ]]
     ]
   };
@@ -1984,9 +2003,6 @@ qs("#indicatorGuideBtn").onclick = openIndicatorGuide;
 qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
-qsa("[data-setup-view]").forEach(button => {
-  button.onclick = () => setActiveSetup(button.dataset.setupView);
-});
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
 function openFullScanner() {
   setView("scanner");
