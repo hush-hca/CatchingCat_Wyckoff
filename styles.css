@@ -72,6 +72,7 @@ header p { margin: 0; color: var(--muted); font-size: 11px; }
 .hot { color: var(--orange); }
 .dot { display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--mint);margin-right:3px; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(600px, 1.8fr) minmax(300px,.8fr); gap: 10px; }
+body[data-view="dashboard"] .dashboard-grid { display:none; }
 .panel { border: 1px solid var(--line); border-radius: 10px; background: rgba(11,22,18,.85); padding: 19px; overflow: hidden; }
 .panel-head { display: flex; justify-content: space-between; align-items: center; }
 .panel h2 { margin: 3px 0 0; font-size: 14px; letter-spacing: -.25px; }
