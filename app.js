@@ -1473,7 +1473,7 @@ function renderLiquidationMap() {
   const maxPrice = visible.at(-1)?.price || current * 1.06;
   const x = price => M.left + ((price - minPrice) / Math.max(maxPrice - minPrice, 1)) * innerW;
   const slotWidth = innerW / Math.max(visible.length - 1, 1);
-  const barWidth = Math.max(1.6, Math.min(6.5, slotWidth * 0.32));
+  const barWidth = Math.max(3.2, Math.min(22, slotWidth * 0.58));
   const barY = volume => M.top + innerH - Math.min(volume / 250_000_000, 1) * innerH;
   const barHeight = volume => Math.min(volume / 250_000_000, 1) * innerH;
   const cumY = volume => M.top + innerH - Math.min(volume / 7_000_000_000, 1) * innerH;
