@@ -13,7 +13,7 @@ const STRUCTURE_CANDLE_LIMIT = 200;
 const STRUCTURE_CACHE_TTL = 5 * 60_000;
 
 const VIEW_COPY = {
-  dashboard: ["Good evening, Operator.", "Read the structure. Follow the volume. Protect the downside."],
+  dashboard: ["", ""],
   volume: ["Volume Fire", "The fastest view of abnormal one-minute participation across the market."],
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
@@ -1705,6 +1705,7 @@ function setView(view) {
   history.replaceState({ view }, "", viewUrl);
   qs("#viewTitle").textContent = VIEW_COPY[view][0];
   qs("#viewSubtitle").textContent = VIEW_COPY[view][1];
+  qs("#titleCopy")?.toggleAttribute("hidden", !VIEW_COPY[view][0] && !VIEW_COPY[view][1]);
   qsa(".nav-item[data-view]").forEach(button => {
     const active = button.dataset.view === view && (!button.dataset.setupNav || button.dataset.setupNav === activeSetupView);
     button.classList.toggle("active", active);
@@ -1818,10 +1819,30 @@ function openIndicatorGuide() {
   const dialog = qs("#indicatorGuideDialog");
   if (!dialog) return;
   const copy = indicatorGuideCopy();
+  const setupLabel = activeSetupView === "setup3" ? "2Blocks" : activeSetupView === "setup2" ? "Setup 2" : "Setup 1";
+  const sectionMap = {
+    dashboard: "Dashboard",
+    volume: "Volume Fire",
+    scanner: "Wyckoff Scanner",
+    watchlist: "Watchlist",
+    alpha: "Alpha Rank",
+    setup: "Setup 1 / Setup 2",
+    guide: "How to use"
+  };
+  let sections = copy.sections.filter(([title]) => title === sectionMap[currentView]);
+  if (currentView === "setup") {
+    sections = sections.map(([title, items]) => [setupLabel, items.filter(([label]) => label === setupLabel)]);
+  }
+  if (!sections.length || sections.some(([, items]) => !items.length)) {
+    sections = [[window.I18N?.language === "ko" ? "현재 페이지" : "Current page", [[
+      window.I18N?.language === "ko" ? "지표 없음" : "No indicators",
+      window.I18N?.language === "ko" ? "이 페이지에는 별도의 시장 지표 설명이 없습니다." : "This page does not have a dedicated market indicator guide."
+    ]]]];
+  }
   qs("#indicatorGuideKicker").textContent = copy.kicker;
-  qs("#indicatorGuideTitle").textContent = copy.title;
+  qs("#indicatorGuideTitle").textContent = `${copy.title} · ${sections[0][0]}`;
   qs("#indicatorGuideIntro").textContent = copy.intro;
-  qs("#indicatorGuideBody").innerHTML = copy.sections.map(([title, items]) => `
+  qs("#indicatorGuideBody").innerHTML = sections.map(([title, items]) => `
     <section class="indicator-guide-section">
       <h3>${escapeHtml(title)}</h3>
       ${items.map(([label, detail]) => `<div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></div>`).join("")}
