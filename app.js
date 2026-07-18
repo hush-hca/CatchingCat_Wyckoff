@@ -64,6 +64,10 @@ let setup2VolumeSort = "desc";
 let liquidationSymbol = "BTC";
 let liquidationTimeframe = "12h";
 let liquidationRange = { start: 0, end: 100 };
+let liquidationVisibleLeverage = { low: true, medium: true, high: true };
+let liquidationChartState = null;
+let liquidationDragState = null;
+const liquidationLivePrices = new Map();
 
 const qs = (selector) => document.querySelector(selector);
 const qsa = (selector) => [...document.querySelectorAll(selector)];
@@ -1392,9 +1396,10 @@ function liquidationSeed(symbol, timeframe) {
 function getLiquidationAsset() {
   const symbol = liquidationSymbol.replace(/USDT$/, "");
   const fromUniverse = assets.find(asset => asset.symbol === symbol);
-  if (fromUniverse) return fromUniverse;
+  const livePrice = liquidationLivePrices.get(symbol);
+  if (fromUniverse) return { ...fromUniverse, price: livePrice || fromUniverse.price };
   const fallbackPrice = symbol === "BTC" ? 64132 : symbol === "ETH" ? 3384 : selected.price;
-  return { symbol, name: symbol, price: fallbackPrice, change: 0, rvol: 2.4 };
+  return { symbol, name: symbol, price: livePrice || fallbackPrice, change: 0, rvol: 2.4 };
 }
 
 function syncLiquidationControls() {
@@ -1423,14 +1428,22 @@ function buildLiquidationData(asset, timeframe) {
     const clusterB = Math.exp(-((distance - 0.32) ** 2) / 0.012) * 74;
     const clusterC = Math.exp(-((distance - 0.72) ** 2) / 0.018) * 35;
     const noise = ((seed + index * 17) % 19) / 19 * 14;
-    const volumeM = Math.min(248, Math.max(1.2, (clusterA + clusterB + clusterC + noise) * wave * sideBias));
-    const leverage = distance <= 0.22 ? "high" : distance <= 0.5 ? "medium" : "low";
+    const base = Math.min(248, Math.max(1.2, (clusterA + clusterB + clusterC + noise) * wave * sideBias));
+    const highWeight = Math.exp(-(distance ** 2) / 0.04);
+    const mediumWeight = Math.exp(-((distance - 0.34) ** 2) / 0.08);
+    const lowWeight = Math.exp(-((distance - 0.76) ** 2) / 0.16);
+    const weightTotal = highWeight + mediumWeight + lowWeight || 1;
+    const volumes = {
+      high: base * highWeight / weightTotal * 1_000_000,
+      medium: base * mediumWeight / weightTotal * 1_000_000,
+      low: base * lowWeight / weightTotal * 1_000_000
+    };
     bars.push({
       price: current * (1 + index / 60 * span),
       distance,
       side: index < 0 ? "short" : index > 0 ? "long" : "current",
-      leverage,
-      volume: volumeM * 1_000_000
+      volumes,
+      volume: volumes.high + volumes.medium + volumes.low
     });
   }
   return bars;
@@ -1446,7 +1459,11 @@ function renderLiquidationMap() {
   const bars = buildLiquidationData(asset, liquidationTimeframe);
   const startIndex = Math.floor((bars.length - 1) * liquidationRange.start / 100);
   const endIndex = Math.ceil((bars.length - 1) * liquidationRange.end / 100);
-  const visible = bars.slice(startIndex, Math.max(startIndex + 12, endIndex + 1));
+  const visible = bars.slice(startIndex, Math.max(startIndex + 12, endIndex + 1)).map(item => ({
+    ...item,
+    activeVolume: Object.entries(item.volumes).reduce((sum, [leverage, volume]) =>
+      sum + (liquidationVisibleLeverage[leverage] ? volume : 0), 0)
+  }));
   const W = 1180;
   const H = 560;
   const M = { top: 76, right: 68, bottom: 54, left: 66 };
@@ -1457,6 +1474,7 @@ function renderLiquidationMap() {
   const x = price => M.left + ((price - minPrice) / Math.max(maxPrice - minPrice, 1)) * innerW;
   const barWidth = Math.max(2.5, innerW / visible.length * 0.58);
   const barY = volume => M.top + innerH - Math.min(volume / 250_000_000, 1) * innerH;
+  const barHeight = volume => Math.min(volume / 250_000_000, 1) * innerH;
   const cumY = volume => M.top + innerH - Math.min(volume / 7_000_000_000, 1) * innerH;
   const currentX = x(current);
   const colors = { low: "#6797ff", medium: "#a889ff", high: "#ff9148" };
@@ -1466,13 +1484,13 @@ function renderLiquidationMap() {
   const longBars = visible.filter(item => item.price >= current).sort((a, b) => a.price - b.price);
   let shortTotal = 0;
   const shortFromCenter = [...shortBars].sort((a, b) => b.price - a.price).map(item => {
-    shortTotal += item.volume * 0.032;
+    shortTotal += item.activeVolume * 0.032;
     return { price: item.price, value: Math.min(shortTotal, 7_000_000_000) };
   });
   const shortPoints = shortFromCenter.reverse();
   let longTotal = 0;
   const longPoints = longBars.map(item => {
-    longTotal += item.volume * 0.031;
+    longTotal += item.activeVolume * 0.031;
     return { price: item.price, value: Math.min(longTotal, 7_000_000_000) };
   });
   const linePath = points => {
@@ -1490,6 +1508,19 @@ function renderLiquidationMap() {
     : "";
   const priceTicks = Array.from({ length: 8 }, (_, index) => minPrice + (maxPrice - minPrice) * index / 7);
   qs("#liqCurrentPrice").textContent = `Current Price : ${Math.round(current).toLocaleString()}`;
+  qsa("[data-liq-leverage]").forEach(button => {
+    button.classList.toggle("active", Boolean(liquidationVisibleLeverage[button.dataset.liqLeverage]));
+  });
+  const stackedBars = visible.map(item => {
+    let yBase = M.top + innerH;
+    return ["low", "medium", "high"].map(leverage => {
+      if (!liquidationVisibleLeverage[leverage]) return "";
+      const height = barHeight(item.volumes[leverage]);
+      yBase -= height;
+      return `<rect class="liq-bar ${leverage}" x="${(x(item.price) - barWidth / 2).toFixed(1)}" y="${yBase.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}" fill="${colors[leverage]}"/>`;
+    }).join("");
+  }).join("");
+  liquidationChartState = { bars, visible, minPrice, maxPrice, current, W, H, M, innerW, innerH };
   chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
     <defs>
       <marker id="liqArrow" markerWidth="8" markerHeight="8" refX="4" refY="3" orient="auto"><path d="M0,6 L4,0 L8,6" fill="#ff5151"/></marker>
@@ -1507,21 +1538,110 @@ function renderLiquidationMap() {
     <text class="liq-zone long-zone" x="${M.left + innerW * 0.78}" y="${M.top + 18}" text-anchor="end">Long liquidation zone</text>
     <path class="liq-area short" d="${areaPath(shortPoints)}"/>
     <path class="liq-area long" d="${areaPath(longPoints)}"/>
-    ${visible.map(item => `<rect class="liq-bar ${item.leverage}" x="${(x(item.price) - barWidth / 2).toFixed(1)}" y="${barY(item.volume).toFixed(1)}" width="${barWidth.toFixed(1)}" height="${(M.top + innerH - barY(item.volume)).toFixed(1)}" fill="${colors[item.leverage]}"/>`).join("")}
+    ${stackedBars}
     <path class="liq-line short" d="${linePath(shortPoints)}"/>
     <path class="liq-line long" d="${linePath(longPoints)}"/>
     ${Number.isFinite(currentX) && currentX >= M.left && currentX <= W - M.right ? `<line class="liq-current-line" x1="${currentX.toFixed(1)}" x2="${currentX.toFixed(1)}" y1="${M.top + innerH}" y2="${M.top + 8}" marker-end="url(#liqArrow)"/><text class="liq-current-label" x="${currentX.toFixed(1)}" y="${M.top - 6}" text-anchor="middle">Current Price : ${Math.round(current).toLocaleString()}</text>` : ""}
     ${priceTicks.map(price => `<text class="liq-price-tick" x="${x(price).toFixed(1)}" y="${H - 20}" text-anchor="middle">${Math.round(price).toLocaleString()}</text>`).join("")}
-  </svg>`;
+  </svg><div class="liq-crosshair" id="liqCrosshair" hidden></div><div class="liq-tooltip" id="liqTooltip" hidden></div>`;
   mini.innerHTML = `<svg viewBox="0 0 ${W} 58" preserveAspectRatio="none">
     <rect x="0" y="0" width="${W}" height="58" rx="9" class="liq-mini-bg"/>
     ${bars.map((item, index) => {
       const bx = index / Math.max(bars.length - 1, 1) * W;
-      const bh = Math.max(2, item.volume / 250_000_000 * 42);
+      const activeVolume = Object.entries(item.volumes).reduce((sum, [leverage, volume]) =>
+        sum + (liquidationVisibleLeverage[leverage] ? volume : 0), 0);
+      const bh = Math.max(2, activeVolume / 250_000_000 * 42);
       return `<rect x="${bx.toFixed(1)}" y="${(50 - bh).toFixed(1)}" width="${Math.max(2, W / bars.length * .62).toFixed(1)}" height="${bh.toFixed(1)}" class="liq-mini-bar"/>`;
     }).join("")}
     <rect class="liq-window" x="${(liquidationRange.start / 100 * W).toFixed(1)}" y="4" width="${((liquidationRange.end - liquidationRange.start) / 100 * W).toFixed(1)}" height="50" rx="7"/>
   </svg>`;
+}
+
+function setLiquidationRange(start, end) {
+  const width = Math.max(20, Math.min(100, end - start));
+  let nextStart = Math.max(0, Math.min(100 - width, start));
+  let nextEnd = nextStart + width;
+  liquidationRange = { start: nextStart, end: nextEnd };
+  if (qs("#liqRangeStart")) qs("#liqRangeStart").value = Math.min(80, nextStart);
+  if (qs("#liqRangeEnd")) qs("#liqRangeEnd").value = Math.max(20, nextEnd);
+}
+
+function updateLiquidationHover(event) {
+  const state = liquidationChartState;
+  const chart = qs("#liquidationChart");
+  const crosshair = qs("#liqCrosshair");
+  const tooltip = qs("#liqTooltip");
+  if (!state || !chart || !crosshair || !tooltip) return;
+  const rect = chart.getBoundingClientRect();
+  const localX = event.clientX - rect.left;
+  const localY = event.clientY - rect.top;
+  const svgX = localX / Math.max(rect.width, 1) * state.W;
+  if (svgX < state.M.left || svgX > state.W - state.M.right || localY < 0 || localY > rect.height) {
+    crosshair.hidden = true;
+    tooltip.hidden = true;
+    return;
+  }
+  const price = state.minPrice + (svgX - state.M.left) / state.innerW * (state.maxPrice - state.minPrice);
+  const nearest = state.visible.reduce((best, item) =>
+    Math.abs(item.price - price) < Math.abs(best.price - price) ? item : best, state.visible[0]);
+  const shortCumulative = state.visible
+    .filter(item => item.price >= nearest.price && item.price <= state.current)
+    .reduce((sum, item) => sum + item.activeVolume * 0.032, 0);
+  const longCumulative = state.visible
+    .filter(item => item.price <= nearest.price && item.price >= state.current)
+    .reduce((sum, item) => sum + item.activeVolume * 0.031, 0);
+  const cumulative = nearest.price < state.current ? shortCumulative : longCumulative;
+  const leftPercent = Math.max(0, Math.min(100, localX / Math.max(rect.width, 1) * 100));
+  crosshair.style.left = `${leftPercent}%`;
+  crosshair.hidden = false;
+  tooltip.innerHTML = `<strong>${Math.round(nearest.price).toLocaleString()}</strong>
+    <span>Cumulative: ${moneyAxis(cumulative, 2)}</span>
+    <span><i class="liq-high"></i> High ${moneyAxis(nearest.volumes.high, 2)}</span>
+    <span><i class="liq-medium"></i> Medium ${moneyAxis(nearest.volumes.medium, 2)}</span>
+    <span><i class="liq-low"></i> Low ${moneyAxis(nearest.volumes.low, 2)}</span>`;
+  tooltip.style.left = `${Math.min(rect.width - 190, Math.max(10, localX + 14))}px`;
+  tooltip.style.top = `${Math.min(rect.height - 132, Math.max(58, localY + 12))}px`;
+  tooltip.hidden = false;
+}
+
+function zoomLiquidationChart(event) {
+  const state = liquidationChartState;
+  if (!state) return;
+  event.preventDefault();
+  const rect = qs("#liquidationChart").getBoundingClientRect();
+  const pointer = Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1)));
+  const width = liquidationRange.end - liquidationRange.start;
+  const nextWidth = Math.max(20, Math.min(100, width * (event.deltaY > 0 ? 1.12 : 0.88)));
+  const anchor = liquidationRange.start + width * pointer;
+  const nextStart = anchor - nextWidth * pointer;
+  setLiquidationRange(nextStart, nextStart + nextWidth);
+  renderLiquidationMap();
+}
+
+function startLiquidationPan(event) {
+  if (event.button !== 0) return;
+  liquidationDragState = {
+    x: event.clientX,
+    start: liquidationRange.start,
+    end: liquidationRange.end
+  };
+  qs("#liquidationChart")?.classList.add("dragging");
+}
+
+function panLiquidationChart(event) {
+  updateLiquidationHover(event);
+  if (!liquidationDragState) return;
+  const chart = qs("#liquidationChart");
+  const rect = chart.getBoundingClientRect();
+  const width = liquidationDragState.end - liquidationDragState.start;
+  const deltaPercent = -(event.clientX - liquidationDragState.x) / Math.max(rect.width, 1) * width;
+  setLiquidationRange(liquidationDragState.start + deltaPercent, liquidationDragState.end + deltaPercent);
+  renderLiquidationMap();
+}
+
+function stopLiquidationPan() {
+  liquidationDragState = null;
+  qs("#liquidationChart")?.classList.remove("dragging");
 }
 
 async function analyze2BlocksAsset(asset) {
@@ -2036,6 +2156,9 @@ async function refreshLiveData() {
     const response = await fetch("https://fapi.binance.com/fapi/v1/ticker/24hr", { signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error("feed unavailable");
     const rows = await response.json();
+    rows.forEach(row => {
+      if (row.symbol?.endsWith("USDT")) liquidationLivePrices.set(row.symbol.replace("USDT", ""), Number(row.lastPrice));
+    });
     const candidates = buildQualifiedUniverse(rows);
     updateUniverseFilterStatus(null);
     const filterResult = await window.MarketUniverseFilter.filterAssets({
@@ -2175,13 +2298,11 @@ qs("#liqTimeframeSelect").onchange = event => {
   renderLiquidationMap();
 };
 qs("#liqRangeStart").oninput = event => {
-  liquidationRange.start = Math.min(Number(event.target.value), liquidationRange.end - 20);
-  event.target.value = liquidationRange.start;
+  setLiquidationRange(Math.min(Number(event.target.value), liquidationRange.end - 20), liquidationRange.end);
   renderLiquidationMap();
 };
 qs("#liqRangeEnd").oninput = event => {
-  liquidationRange.end = Math.max(Number(event.target.value), liquidationRange.start + 20);
-  event.target.value = liquidationRange.end;
+  setLiquidationRange(liquidationRange.start, Math.max(Number(event.target.value), liquidationRange.start + 20));
   renderLiquidationMap();
 };
 qs("#liquidationNavigator").onwheel = event => {
@@ -2190,16 +2311,25 @@ qs("#liquidationNavigator").onwheel = event => {
   const delta = event.deltaY > 0 ? 6 : -6;
   const nextWidth = Math.max(20, Math.min(100, width + delta));
   const center = (liquidationRange.start + liquidationRange.end) / 2;
-  liquidationRange.start = Math.max(0, center - nextWidth / 2);
-  liquidationRange.end = Math.min(100, center + nextWidth / 2);
-  if (liquidationRange.end - liquidationRange.start < nextWidth) {
-    if (liquidationRange.start === 0) liquidationRange.end = nextWidth;
-    if (liquidationRange.end === 100) liquidationRange.start = 100 - nextWidth;
-  }
-  qs("#liqRangeStart").value = liquidationRange.start;
-  qs("#liqRangeEnd").value = liquidationRange.end;
+  setLiquidationRange(center - nextWidth / 2, center + nextWidth / 2);
   renderLiquidationMap();
 };
+qsa("[data-liq-leverage]").forEach(button => {
+  button.onclick = () => {
+    const key = button.dataset.liqLeverage;
+    liquidationVisibleLeverage[key] = !liquidationVisibleLeverage[key];
+    renderLiquidationMap();
+  };
+});
+qs("#liquidationChart").onwheel = zoomLiquidationChart;
+qs("#liquidationChart").onmousemove = panLiquidationChart;
+qs("#liquidationChart").onmouseleave = () => {
+  qs("#liqCrosshair")?.setAttribute("hidden", "");
+  qs("#liqTooltip")?.setAttribute("hidden", "");
+  stopLiquidationPan();
+};
+qs("#liquidationChart").onmousedown = startLiquidationPan;
+window.addEventListener("mouseup", stopLiquidationPan);
 function openFullScanner() {
   setView("scanner");
   requestAnimationFrame(() => {

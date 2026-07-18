@@ -237,11 +237,14 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liquidation-controls select { min-width:108px;height:34px;border:1px solid var(--line);border-radius:8px;background:#08110e;color:var(--text);font:600 10px Manrope;padding:0 28px 0 11px;outline:none; }
 .liquidation-chart-card { position:relative;border:1px solid var(--line);border-radius:14px;background:#07110e;padding:16px 16px 14px;overflow:hidden; }
 .liquidation-legend { position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:18px;color:#93a79d;font-size:10px;white-space:nowrap; }
-.liquidation-legend span { display:flex;align-items:center;gap:6px; }
+.liquidation-legend button { display:flex;align-items:center;gap:6px;border:0;border-radius:999px;background:rgba(190,225,209,.06);color:inherit;font:700 10px Manrope;padding:5px 9px;cursor:pointer;opacity:.42;transition:.16s; }
+.liquidation-legend button.active { opacity:1;background:rgba(190,225,209,.11); }
+.liquidation-legend button:hover { transform:translateY(-1px); }
 .liquidation-legend i { width:22px;height:10px;border-radius:3px;display:inline-block;box-shadow:0 2px 8px rgba(0,0,0,.16); }
 .liq-low { background:#6797ff; }.liq-medium { background:#a889ff; }.liq-high { background:#ff9148; }
 .liquidation-current { position:absolute;top:35px;left:50%;transform:translateX(-50%);z-index:2;color:#ff5151;font:600 10px "DM Mono";white-space:nowrap; }
-.liquidation-chart { width:100%;height:570px; }
+.liquidation-chart { position:relative;width:100%;height:570px;cursor:grab;user-select:none;touch-action:none; }
+.liquidation-chart.dragging { cursor:grabbing; }
 .liquidation-chart svg,.liq-mini-map svg { width:100%;height:100%;display:block;overflow:visible; }
 .liq-bg { fill:#0a1512; }
 .liq-grid line { stroke:rgba(190,225,209,.08);stroke-dasharray:4 5; }
@@ -256,6 +259,12 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liq-bar.high { opacity:.94; }
 .liq-current-line { stroke:#ff5151;stroke-width:1.8;stroke-dasharray:7 6; }
 .liq-current-label { fill:#ff5151;font:700 10px "DM Mono"; }
+.liq-crosshair { position:absolute;top:0;bottom:0;width:0;border-left:1px dashed rgba(255,255,255,.58);pointer-events:none;z-index:3; }
+.liq-tooltip { position:absolute;z-index:4;min-width:176px;border:1px solid rgba(190,225,209,.16);border-radius:10px;background:rgba(7,16,13,.94);box-shadow:0 18px 55px rgba(0,0,0,.34);padding:10px 11px;color:var(--text);font-size:10px;pointer-events:none;backdrop-filter:blur(10px); }
+.liq-tooltip strong,.liq-tooltip span { display:block; }
+.liq-tooltip strong { color:#ffdfdf;font:700 11px "DM Mono";margin-bottom:6px; }
+.liq-tooltip span { color:#8ba096;line-height:1.7; }
+.liq-tooltip i { display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px; }
 .liquidation-navigator { position:relative;height:58px;margin:8px 44px 0;border:1px solid rgba(103,151,255,.22);border-radius:9px;background:rgba(103,151,255,.06);overflow:hidden; }
 .liq-mini-map { position:absolute;inset:0;pointer-events:none; }
 .liq-mini-bg { fill:rgba(103,151,255,.06); }
@@ -546,7 +555,13 @@ html[data-theme="light"] .liq-grid text,
 html[data-theme="light"] .liq-axis-right,
 html[data-theme="light"] .liq-price-tick { fill:#65786f; }
 html[data-theme="light"] .liquidation-legend { color:#5f746a; }
+html[data-theme="light"] .liquidation-legend button { background:rgba(47,111,175,.06); }
+html[data-theme="light"] .liquidation-legend button.active { background:rgba(47,111,175,.12); }
 html[data-theme="light"] .liquidation-navigator { background:rgba(103,151,255,.08); }
+html[data-theme="light"] .liq-crosshair { border-left-color:rgba(36,52,45,.42); }
+html[data-theme="light"] .liq-tooltip { background:rgba(255,255,255,.96);box-shadow:0 18px 45px rgba(25,45,35,.16); }
+html[data-theme="light"] .liq-tooltip strong { color:#c4444e; }
+html[data-theme="light"] .liq-tooltip span { color:#5f746a; }
 html[data-theme="light"] body[data-view="alpha"] .alpha-inline-mount .chart-panel,
 html[data-theme="light"] body[data-view="setup"] .setup-inline-mount .chart-panel,
 html[data-theme="light"] .inline-chart-mount .chart-panel,

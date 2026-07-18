@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=dashboard-clean-1" />
+    <link rel="stylesheet" href="styles.css?v=liquidation-map-2" />
   </head>
   <body>
     <div class="noise"></div>
@@ -236,14 +236,17 @@
               </select>
             </label>
           </div>
-          <div class="liquidation-chart-card">
-            <div class="liquidation-legend" aria-label="Liquidation leverage legend">
-              <span><i class="liq-low"></i> Low leverage</span>
-              <span><i class="liq-medium"></i> Medium leverage</span>
-              <span><i class="liq-high"></i> High leverage</span>
+            <div class="liquidation-chart-card">
+              <div class="liquidation-legend" aria-label="Liquidation leverage legend">
+              <button class="active" type="button" data-liq-leverage="low"><i class="liq-low"></i> Low leverage</button>
+              <button class="active" type="button" data-liq-leverage="medium"><i class="liq-medium"></i> Medium leverage</button>
+              <button class="active" type="button" data-liq-leverage="high"><i class="liq-high"></i> High leverage</button>
+              </div>
+              <div class="liquidation-current" id="liqCurrentPrice">Current Price : 64,132</div>
+            <div class="liquidation-chart" id="liquidationChart" role="img" aria-label="Liquidation map chart">
+              <div class="liq-crosshair" id="liqCrosshair" hidden></div>
+              <div class="liq-tooltip" id="liqTooltip" hidden></div>
             </div>
-            <div class="liquidation-current" id="liqCurrentPrice">Current Price : 64,132</div>
-            <div class="liquidation-chart" id="liquidationChart" role="img" aria-label="Liquidation map chart"></div>
             <div class="liquidation-navigator" id="liquidationNavigator">
               <div class="liq-mini-map" id="liqMiniMap"></div>
               <input id="liqRangeStart" type="range" min="0" max="80" value="0" aria-label="Navigator start" />
@@ -378,8 +381,8 @@
       </form>
     </dialog>
 
-    <script src="i18n.js?v=2blocks-1"></script>
+    <script src="i18n.js?v=liquidation-map-2"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=liquidation-map-1"></script>
+    <script src="app.js?v=liquidation-map-2"></script>
   </body>
 </html>
