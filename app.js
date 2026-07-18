@@ -1376,8 +1376,12 @@ function renderSparkline(values) {
 }
 
 async function analyze2BlocksAsset(asset) {
-  const candles = await fetchPublicKlines(asset.symbol, "5m", 96);
+  const [candles, hourlyCandles] = await Promise.all([
+    fetchPublicKlines(asset.symbol, "5m", 96),
+    fetchPublicKlines(asset.symbol, "1h", 48)
+  ]);
   const completed = candles.filter(candle => candle.time + 5 * 60_000 <= Date.now());
+  const completedHourly = hourlyCandles.filter(candle => candle.time + 60 * 60_000 <= Date.now());
   const signals = [];
   for (let index = 1; index < completed.length - 1; index += 1) {
     const previous = completed[index - 1];
@@ -1394,6 +1398,10 @@ async function analyze2BlocksAsset(asset) {
       const fallbackQuoteVolume = candle.volume * ((candle.high + candle.low + candle.close) / 3);
       return sum + (Number.isFinite(candle.quoteVolume) && candle.quoteVolume > 0 ? candle.quoteVolume : fallbackQuoteVolume);
     }, 0);
+    const hourlyPath = completedHourly
+      .filter(candle => candle.time <= confirmation.time)
+      .slice(-24)
+      .map(candle => candle.close);
     signals.push({
       symbol: asset.symbol,
       name: asset.name,
@@ -1407,7 +1415,9 @@ async function analyze2BlocksAsset(asset) {
       bodyExpansion,
       confirmationMove,
       quoteVolume,
-      sparkline: completed.slice(Math.max(0, index - 8), index + 2).map(candle => candle.close)
+      sparkline: hourlyPath.length >= 2
+        ? hourlyPath
+        : completedHourly.slice(-24).map(candle => candle.close)
     });
   }
   return signals.slice(-3);
@@ -1512,7 +1522,7 @@ function renderSetup3Rank(openInlineChart = true) {
       <span>${alphaCopy("Trigger time", "발생 시각")}</span>
       <span>${alphaCopy("Price", "가격")}</span>
       <span>${alphaCopy("Confirm move", "확인 상승")}</span>
-      <span>${alphaCopy("5m path", "5분 흐름")}</span>
+      <span>${alphaCopy("1H path", "1시간 흐름")}</span>
       <span>${alphaCopy("Volume", "거래대금")}</span>
     </div>
     ${setup3Rankings.map((item, index) => {
