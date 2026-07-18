@@ -1417,8 +1417,7 @@ function syncLiquidationControls() {
 function buildLiquidationData(asset, timeframe) {
   const seed = liquidationSeed(asset.symbol, timeframe);
   const current = Number(asset.price) || 64132;
-  const spanMap = { "15m": 0.018, "1h": 0.035, "4h": 0.065, "12h": 0.095, "1D": 0.14, "1W": 0.24 };
-  const span = spanMap[timeframe] || 0.055;
+  const priceStep = 10;
   const bars = [];
   for (let index = -60; index <= 60; index += 1) {
     const distance = Math.abs(index) / 60;
@@ -1439,7 +1438,7 @@ function buildLiquidationData(asset, timeframe) {
       low: base * lowWeight / weightTotal * 1_000_000
     };
     bars.push({
-      price: current * (1 + index / 60 * span),
+      price: current + index * priceStep,
       distance,
       side: index < 0 ? "short" : index > 0 ? "long" : "current",
       volumes,
@@ -1506,7 +1505,9 @@ function renderLiquidationMap() {
   const areaPath = points => points.length
     ? `${linePath(points)} L${x(points.at(-1).price).toFixed(1)} ${M.top + innerH} L${x(points[0].price).toFixed(1)} ${M.top + innerH} Z`
     : "";
-  const priceTicks = Array.from({ length: 8 }, (_, index) => minPrice + (maxPrice - minPrice) * index / 7);
+  const tickSpacing = innerW / Math.max(visible.length - 1, 1);
+  const tickLabelStep = Math.max(1, Math.ceil(44 / Math.max(tickSpacing, 1)));
+  const priceTicks = visible.filter((_, index) => index % tickLabelStep === 0 || index === visible.length - 1).map(item => item.price);
   qs("#liqCurrentPrice").textContent = `Current Price : ${Math.round(current).toLocaleString()}`;
   qsa("[data-liq-leverage]").forEach(button => {
     button.classList.toggle("active", Boolean(liquidationVisibleLeverage[button.dataset.liqLeverage]));
@@ -1541,7 +1542,7 @@ function renderLiquidationMap() {
     ${stackedBars}
     <path class="liq-line short" d="${linePath(shortPoints)}"/>
     <path class="liq-line long" d="${linePath(longPoints)}"/>
-    ${Number.isFinite(currentX) && currentX >= M.left && currentX <= W - M.right ? `<line class="liq-current-line" x1="${currentX.toFixed(1)}" x2="${currentX.toFixed(1)}" y1="${M.top + innerH}" y2="${M.top + 8}" marker-end="url(#liqArrow)"/><text class="liq-current-label" x="${currentX.toFixed(1)}" y="${M.top - 6}" text-anchor="middle">Current Price : ${Math.round(current).toLocaleString()}</text>` : ""}
+    ${Number.isFinite(currentX) && currentX >= M.left && currentX <= W - M.right ? `<line class="liq-current-line" x1="${currentX.toFixed(1)}" x2="${currentX.toFixed(1)}" y1="${M.top + innerH}" y2="${M.top + 8}" marker-end="url(#liqArrow)"/>` : ""}
     ${priceTicks.map(price => `<text class="liq-price-tick" x="${x(price).toFixed(1)}" y="${H - 20}" text-anchor="middle">${Math.round(price).toLocaleString()}</text>`).join("")}
   </svg><div class="liq-crosshair" id="liqCrosshair" hidden></div><div class="liq-tooltip" id="liqTooltip" hidden></div>`;
   mini.innerHTML = `<svg viewBox="0 0 ${W} 58" preserveAspectRatio="none">
