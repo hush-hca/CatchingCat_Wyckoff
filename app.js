@@ -2010,7 +2010,7 @@ qs("#saveSettingsBtn").onclick = () => {
   showToast("Scanner settings saved", "Keyless blacklist refreshed with the 40% domestic-volume rule.");
 };
 qs("#indicatorGuideBtn").onclick = openIndicatorGuide;
-qs("#alphaRankBtn").onclick = () => setView("alpha");
+if (qs("#alphaRankBtn")) qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
