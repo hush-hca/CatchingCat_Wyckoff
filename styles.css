@@ -22,8 +22,8 @@ button { color: inherit; }
 .noise { position: fixed; inset: 0; opacity: .025; pointer-events: none; z-index: 20; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
 .sidebar { position: fixed; width: 232px; height: 100vh; border-right: 1px solid var(--line); background: rgba(7,16,13,.92); padding: 26px 18px 20px; display: flex; flex-direction: column; z-index: 10; backdrop-filter: blur(18px); }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text); padding: 0 8px 31px; }
-.brand-mark { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--mint); box-shadow: 0 0 30px rgba(72,229,155,.2); }
-.brand-mark svg { width: 24px; fill: none; stroke: #07100d; stroke-width: 2; stroke-linecap: round; }
+.brand-mark { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; overflow:hidden; background:#101a17; box-shadow: 0 0 30px rgba(72,229,155,.2); }
+.brand-mark img { width:100%;height:100%;object-fit:cover;image-rendering:pixelated; }
 .brand strong { display: block; font-size: 14px; letter-spacing: -.2px; }
 .brand small, .operator small { display: block; color: var(--muted); font-size: 10px; margin-top: 2px; }
 nav { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 4px; margin-right: -4px; scrollbar-width: thin; scrollbar-color: rgba(72,229,155,.35) transparent; }
@@ -410,7 +410,6 @@ html[data-theme="light"] .sidebar {
   box-shadow:1px 0 0 rgba(255,255,255,.7);
 }
 html[data-theme="light"] .brand-mark { box-shadow:0 0 24px rgba(18,138,88,.12); }
-html[data-theme="light"] .brand-mark svg { stroke:#f7fbf9; }
 html[data-theme="light"] nav p,
 html[data-theme="light"] .summary-card > i,
 html[data-theme="light"] .sort-toolbar,
