@@ -1709,7 +1709,7 @@ function setActiveSetup(view, refresh = true) {
     else button.removeAttribute("aria-current");
   });
   renderSetupRank();
-  if (refresh && liveUniverseReady) refreshSetupRank();
+  if (refresh && liveUniverseReady && view !== "setup3") refreshSetupRank();
 }
 
 function setView(view) {
@@ -1752,7 +1752,7 @@ function setView(view) {
     currentTimeframe = activeSetupView === "setup3" ? "5M" : "1H";
     qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === currentTimeframe));
     renderSetupRank();
-    if (liveUniverseReady) refreshSetupRank();
+    if (liveUniverseReady && activeSetupView !== "setup3") refreshSetupRank();
   }
 }
 
@@ -1938,7 +1938,7 @@ async function refreshLiveData() {
   liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (currentView === "alpha") refreshAlphaRank();
-  if (currentView === "setup") refreshSetupRank();
+  if (currentView === "setup" && activeSetupView !== "setup3") refreshSetupRank();
 }
 
 function renderAll() {
