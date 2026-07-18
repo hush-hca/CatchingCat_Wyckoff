@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=indicator-guide-1" />
+    <link rel="stylesheet" href="styles.css?v=2blocks-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -33,6 +33,7 @@
         <button class="nav-item" data-view="alpha"><span>α</span> Alpha Rank</button>
         <button class="nav-item" data-view="setup" data-setup-nav="setup1"><span>⌁</span> Setup 1</button>
         <button class="nav-item" data-view="setup" data-setup-nav="setup2"><span>⌁</span> Setup 2</button>
+        <button class="nav-item" data-view="setup" data-setup-nav="setup3"><span>▣</span> 2Blocks</button>
         <p>Help</p>
         <button class="nav-item" data-view="guide"><span>?</span> How to use</button>
       </nav>
@@ -138,7 +139,7 @@
           <div class="panel-head">
             <div class="asset-title"><span class="coin-badge sui">S</span><div><span class="eyebrow">SELECTED SETUP</span><h2><span id="chartSymbol">SUI</span> / USDT <small>PERP</small></h2></div></div>
             <div class="chart-price"><strong id="chartPrice">$3.8421</strong><span class="up" id="chartChange">+8.42%</span></div>
-            <div class="timeframes"><button class="active">1H</button><button>4H</button><button>1D</button><button>1W</button></div>
+            <div class="timeframes"><button>5M</button><button class="active">1H</button><button>4H</button><button>1D</button><button>1W</button></div>
           </div>
           <div class="chart-meta">
             <span id="chartStructure"><i class="meta-dot green"></i>Loading live structure…</span>
@@ -205,11 +206,13 @@
           <div class="panel-head setup-head">
             <div class="setup-heading setup1-only"><span class="eyebrow">SETUP 1 · SHORT REVERSAL</span><h2>Altcoin Fakeout Short</h2><p class="muted">Ranks assets that repeatedly reject the previous one-week high and show weakening bullish demand, regardless of Wyckoff structure or phase.</p></div>
             <div class="setup-heading setup2-only"><span class="eyebrow">SETUP 2 · TIME WINDOW</span><h2>04:00–09:00 KST Decline Window</h2><p class="muted">Scanner symbols that declined in most completed 04:00–09:00 KST sessions over the last seven days.</p></div>
+            <div class="setup-heading setup3-only"><span class="eyebrow">SETUP 3 · 5M REVERSAL</span><h2>2Blocks</h2><p class="muted">Captures 5-minute bullish order block reversals confirmed by a second consecutive green candle, listed by trigger time.</p></div>
             <button class="ghost-button" id="refreshSetupBtn" type="button">Refresh setup</button>
           </div>
           <div class="setup-switch" role="tablist" aria-label="Setup selection">
             <button class="active" type="button" role="tab" aria-selected="true" data-setup-view="setup1">Setup 1</button>
             <button type="button" role="tab" aria-selected="false" data-setup-view="setup2">Setup 2</button>
+            <button type="button" role="tab" aria-selected="false" data-setup-view="setup3">2Blocks</button>
           </div>
           <div class="setup-rules setup1-only">
             <span><b>01</b><strong>Weekly-high rejection</strong><small>High within ±0.5%, close below · at least 2 tests</small></span>
@@ -220,6 +223,11 @@
             <span><b>01</b><strong>Seven KST sessions</strong><small>Completed 1H candles from 04:00 through 09:00 KST</small></span>
             <span><b>02</b><strong>Decline probability</strong><small>More than half of observed sessions close lower</small></span>
             <span><b>03</b><strong>Negative average move</strong><small>Average 04:00–09:00 return must remain below 0%</small></span>
+          </div>
+          <div class="setup-rules setup3-only">
+            <span><b>01</b><strong>Bearish body engulfed</strong><small>Green order block fully engulfs the previous red candle body</small></span>
+            <span><b>02</b><strong>Next candle green</strong><small>The immediate next 5m candle also closes bullish</small></span>
+            <span><b>03</b><strong>Occurrence feed</strong><small>Newest confirmed 2Blocks signal is listed first</small></span>
           </div>
           <div class="setup-status" id="setupStatus">
             <span class="pulse"></span>
@@ -354,8 +362,8 @@
       </form>
     </dialog>
 
-    <script src="i18n.js?v=alpha-help-ko-1"></script>
+    <script src="i18n.js?v=2blocks-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=indicator-guide-1"></script>
+    <script src="app.js?v=2blocks-1"></script>
   </body>
 </html>

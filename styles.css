@@ -139,10 +139,13 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .ghost-button { width:100%;height:31px;border:1px solid var(--line);border-radius:7px;background:transparent;color:#82978d;font-size:10px;margin-top:11px;cursor:pointer; }
 .setup-panel { display:none;grid-column:1/-1; }
 .setup-heading { min-width:0; }
-.setup-panel .setup2-only { display:none; }
+.setup-panel .setup2-only,.setup-panel .setup3-only { display:none; }
 .setup-panel[data-active-setup="setup2"] .setup1-only { display:none; }
 .setup-panel[data-active-setup="setup2"] .setup2-only.setup-heading { display:block; }
 .setup-panel[data-active-setup="setup2"] .setup2-only.setup-rules { display:grid; }
+.setup-panel[data-active-setup="setup3"] .setup1-only { display:none; }
+.setup-panel[data-active-setup="setup3"] .setup3-only.setup-heading { display:block; }
+.setup-panel[data-active-setup="setup3"] .setup3-only.setup-rules { display:grid; }
 .setup-switch { width:max-content;display:flex;gap:3px;margin:16px 0 2px;padding:3px;border:1px solid var(--line);border-radius:7px;background:#08110e; }
 .setup-switch button { min-width:76px;height:29px;border:0;border-radius:5px;background:transparent;color:var(--muted);font-size:10px;font-weight:700;cursor:pointer; }
 .setup-switch button.active { background:#183026;color:var(--mint); }
@@ -222,6 +225,15 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .setup2-probability,.setup2-volume { font:600 10px "DM Mono"; }
 .setup2-probability { color:var(--danger); }
 .setup2-move,.setup2-days { font:500 10px "DM Mono"; }
+.setup3-table { min-width:760px; }
+.setup3-table-head,.setup3-row { width:100%;display:grid;grid-template-columns:42px 76px 104px 105px 105px 1fr 62px;align-items:center;gap:9px;padding:0 9px; }
+.setup3-table-head { min-height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:#53695f;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase; }
+.setup3-row { min-height:58px;border:0;border-bottom:1px solid rgba(190,225,209,.08);background:transparent;color:var(--text);text-align:left;cursor:pointer; }
+.setup3-row:hover,.setup3-row.expanded { background:rgba(72,229,155,.045); }
+.setup3-row .setup-phase { color:var(--mint); }
+.setup3-price,.setup3-move,.setup3-time { font:600 10px "DM Mono"; }
+.setup3-move { color:var(--mint); }
+.setup3-note { color:var(--muted);font-size:10px;line-height:1.45; }
 
 body[data-view="volume"] .summary-grid,
 body[data-view="scanner"] .summary-grid,
@@ -446,6 +458,7 @@ html[data-theme="light"] td,
 html[data-theme="light"] .alpha-row,
 html[data-theme="light"] .setup-row,
 html[data-theme="light"] .setup2-row,
+html[data-theme="light"] .setup3-row,
 html[data-theme="light"] .rule-list > div,
 html[data-theme="light"] .signal-guide article,
 html[data-theme="light"] .rule-matrix > div {
@@ -461,6 +474,8 @@ html[data-theme="light"] .setup-row:hover,
 html[data-theme="light"] .setup-row.expanded,
 html[data-theme="light"] .setup2-row:hover,
 html[data-theme="light"] .setup2-row.expanded { background:rgba(196,68,78,.045); }
+html[data-theme="light"] .setup3-row:hover,
+html[data-theme="light"] .setup3-row.expanded { background:rgba(18,138,88,.055); }
 html[data-theme="light"] .signal-pill,
 html[data-theme="light"] .asset-title h2 small { color:#536a60;background:#e7efeb; }
 html[data-theme="light"] .rvol-bar,

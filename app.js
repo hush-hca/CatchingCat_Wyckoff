@@ -58,6 +58,7 @@ let expandedSetupSymbol = null;
 let setupToggleToken = 0;
 let activeSetupView = "setup1";
 let setup2Rankings = [];
+let setup3Rankings = [];
 let setup2VolumeSort = "desc";
 
 const qs = (selector) => document.querySelector(selector);
@@ -558,7 +559,7 @@ function renderChart(candles, estimate) {
 async function loadSelectedChart() {
   const symbol = selected.symbol;
   const timeframe = currentTimeframe;
-  const interval = { "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" }[timeframe];
+  const interval = { "5M": "5m", "1H": "1h", "4H": "4h", "1D": "1d", "1W": "1w" }[timeframe];
   const requestToken = ++chartRequestToken;
   qs("#chartStructure").innerHTML = `<i class="meta-dot green"></i>${chartCopy(`Loading ${timeframe} live structure…`, `${timeframe} 실시간 구조 로딩 중…`)}`;
   renderChartState(chartCopy("Loading real-time candles…", "실시간 캔들 로딩 중…"));
@@ -1348,6 +1349,51 @@ function analyzeKstDeclineWindow(asset) {
   };
 }
 
+function candleBodyEngulfed(previous, current) {
+  const previousBodyHigh = Math.max(previous.open, previous.close);
+  const previousBodyLow = Math.min(previous.open, previous.close);
+  const currentBodyHigh = Math.max(current.open, current.close);
+  const currentBodyLow = Math.min(current.open, current.close);
+  return currentBodyLow <= previousBodyLow && currentBodyHigh >= previousBodyHigh;
+}
+
+async function analyze2BlocksAsset(asset) {
+  const candles = await fetchPublicKlines(asset.symbol, "5m", 96);
+  const completed = candles.filter(candle => candle.time + 5 * 60_000 <= Date.now());
+  const signals = [];
+  for (let index = 1; index < completed.length - 1; index += 1) {
+    const previous = completed[index - 1];
+    const orderBlock = completed[index];
+    const confirmation = completed[index + 1];
+    const previousBearish = previous.close < previous.open;
+    const orderBlockBullish = orderBlock.close > orderBlock.open;
+    const confirmationBullish = confirmation.close > confirmation.open;
+    if (!previousBearish || !orderBlockBullish || !confirmationBullish) continue;
+    if (!candleBodyEngulfed(previous, orderBlock)) continue;
+    const bodyExpansion = Math.abs(orderBlock.close - orderBlock.open) / Math.max(Math.abs(previous.open - previous.close), previous.close * 0.0001);
+    const confirmationMove = orderBlock.close ? confirmation.close / orderBlock.close - 1 : 0;
+    const quoteVolume = [previous, orderBlock, confirmation].reduce((sum, candle) => {
+      const fallbackQuoteVolume = candle.volume * ((candle.high + candle.low + candle.close) / 3);
+      return sum + (Number.isFinite(candle.quoteVolume) && candle.quoteVolume > 0 ? candle.quoteVolume : fallbackQuoteVolume);
+    }, 0);
+    signals.push({
+      symbol: asset.symbol,
+      name: asset.name,
+      phase: asset.phase,
+      structure: asset.structure,
+      triggerTime: confirmation.time,
+      price: confirmation.close,
+      orderBlockOpen: orderBlock.open,
+      orderBlockClose: orderBlock.close,
+      confirmationClose: confirmation.close,
+      bodyExpansion,
+      confirmationMove,
+      quoteVolume
+    });
+  }
+  return signals.slice(-3);
+}
+
 function sortedSetup2Rankings() {
   const defaultSorted = [...setup2Rankings].sort((left, right) =>
     right.declineProbability - left.declineProbability
@@ -1426,7 +1472,62 @@ function renderSetup2Rank(openInlineChart = true) {
   });
 }
 
+function renderSetup3Rank(openInlineChart = true) {
+  const list = qs("#setupList");
+  if (!list) return;
+  const chartPanel = qs("#selectedSetupPanel");
+  const chartAnchor = qs("#chartAnchor");
+  if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) chartAnchor.after(chartPanel);
+  if (!setup3Rankings.length) {
+    list.innerHTML = setupLoading ? "" : `<div class="setup-empty">${alphaCopy(
+      "No 2Blocks bullish reversal has been confirmed on the 5m timeframe yet.",
+      "아직 5분봉에서 확인된 2Blocks 상승 반전 신호가 없습니다."
+    )}</div>`;
+    return;
+  }
+
+  list.innerHTML = `<div class="setup3-table">
+    <div class="setup3-table-head">
+      <span>#</span>
+      <span>${alphaCopy("Symbol", "종목")}</span>
+      <span>${alphaCopy("Trigger time", "발생 시각")}</span>
+      <span>${alphaCopy("Price", "가격")}</span>
+      <span>${alphaCopy("Confirm move", "확인 상승")}</span>
+      <span>${alphaCopy("Signal", "신호")}</span>
+      <span>${alphaCopy("Volume", "거래대금")}</span>
+    </div>
+    ${setup3Rankings.map((item, index) => {
+      const inlineChart = expandedSetupSymbol === item.symbol
+        ? `<div class="setup-inline-shell" data-setup-chart-for="${item.symbol}"><div class="setup-inline-mount"></div></div>`
+        : "";
+      const triggerTime = new Date(item.triggerTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return `<button class="setup3-row ${expandedSetupSymbol === item.symbol ? "expanded" : ""}" type="button" data-setup-symbol="${item.symbol}" aria-expanded="${expandedSetupSymbol === item.symbol}">
+        <span class="setup-rank">#${index + 1}</span>
+        <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
+        <span class="setup3-time">${triggerTime}</span>
+        <strong class="setup3-price">${fmt(item.price)}</strong>
+        <span class="setup3-move">+${(item.confirmationMove * 100).toFixed(2)}%</span>
+        <span class="setup3-note">${alphaCopy("Bullish order block engulf + next green close", "상승 Order Block 장악 + 다음 캔들 양봉 마감")} · ${item.bodyExpansion.toFixed(2)}× body</span>
+        <strong class="setup2-volume">${compactUsd(item.quoteVolume)}</strong>
+      </button>${inlineChart}`;
+    }).join("")}
+  </div>`;
+
+  const inlineMount = qs(".setup-inline-mount");
+  if (inlineMount && chartPanel) {
+    inlineMount.append(chartPanel);
+    if (openInlineChart) qs(".setup-inline-shell")?.classList.add("open");
+  }
+  qsa("[data-setup-symbol]").forEach(button => {
+    button.onclick = () => toggleSetupChart(button.dataset.setupSymbol);
+  });
+}
+
 function renderSetupRank(openInlineChart = true) {
+  if (activeSetupView === "setup3") {
+    renderSetup3Rank(openInlineChart);
+    return;
+  }
   if (activeSetupView === "setup2") {
     renderSetup2Rank(openInlineChart);
     return;
@@ -1480,8 +1581,8 @@ function toggleSetupChart(symbol) {
     if (token !== setupToggleToken) return;
     expandedSetupSymbol = sameSymbol ? null : symbol;
     if (!sameSymbol) {
-      currentTimeframe = "1H";
-      qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === "1H"));
+      currentTimeframe = activeSetupView === "setup3" ? "5M" : "1H";
+      qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === currentTimeframe));
       selectAsset(symbol, false);
     }
     renderSetupRank(false);
@@ -1508,14 +1609,17 @@ async function refreshSetupRank() {
   const status = qs("#setupStatus");
   setupLoading = true;
   if (setupView === "setup1") setupRankings = [];
-  else setup2Rankings = [];
+  else if (setupView === "setup2") setup2Rankings = [];
+  else setup3Rankings = [];
   expandedSetupSymbol = null;
   setupToggleToken += 1;
   renderSetupRank();
   status.innerHTML = setupView === "setup1"
     ? `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 1", "Setup 1 분석 중")}</strong><small>${alphaCopy("Checking 1H 200-candle weekly-high and volume conditions.", "1H 200캔들의 주간 고점 및 거래량 조건을 확인합니다.")}</small></div>`
-    : `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 2", "Setup 2 분석 중")}</strong><small>${alphaCopy("Comparing the latest seven completed 04:00–09:00 KST sessions.", "최근 완료된 KST 04:00–09:00 세션 7개를 비교합니다.")}</small></div>`;
-  if (structureAnalysisPromise) await structureAnalysisPromise;
+    : setupView === "setup2"
+      ? `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 2", "Setup 2 분석 중")}</strong><small>${alphaCopy("Comparing the latest seven completed 04:00–09:00 KST sessions.", "최근 완료된 KST 04:00–09:00 세션 7개를 비교합니다.")}</small></div>`
+      : `<span class="pulse"></span><div><strong>${alphaCopy("Scanning 2Blocks", "2Blocks 스캔 중")}</strong><small>${alphaCopy("Checking 5m bullish order block engulfing signals at candle close.", "5분봉 마감 기준 상승 Order Block 장악 신호를 확인합니다.")}</small></div>`;
+  if (setupView !== "setup3" && structureAnalysisPromise) await structureAnalysisPromise;
   if (token !== setupRunToken || setupView !== activeSetupView) return;
 
   if (setupView === "setup1") {
@@ -1523,10 +1627,17 @@ async function refreshSetupRank() {
       .map(analyzeFakeoutShort)
       .filter(Boolean)
       .sort((left, right) => right.score - left.score || right.testCount - left.testCount || left.highGapPercent - right.highGapPercent);
-  } else {
+  } else if (setupView === "setup2") {
     setup2Rankings = assets
       .map(analyzeKstDeclineWindow)
       .filter(Boolean);
+  } else {
+    const results = await mapWithConcurrency(assets, 8, analyze2BlocksAsset);
+    if (token !== setupRunToken || setupView !== activeSetupView) return;
+    setup3Rankings = results
+      .flatMap(result => Array.isArray(result) ? result : [])
+      .sort((left, right) => right.triggerTime - left.triggerTime || right.quoteVolume - left.quoteVolume)
+      .slice(0, 80);
   }
   setupLoading = false;
   status.innerHTML = setupView === "setup1"
@@ -1534,20 +1645,27 @@ async function refreshSetupRank() {
       `${setupRankings.length} assets meet every condition`,
       `${setupRankings.length}개 종목이 모든 조건을 충족`
     )}</small></div>`
-    : `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 2 ranking ready", "Setup 2 순위 완료")}</strong><small>${alphaCopy(
+    : setupView === "setup2"
+      ? `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 2 ranking ready", "Setup 2 순위 완료")}</strong><small>${alphaCopy(
       `${setup2Rankings.length} scanner symbols show a majority decline pattern`,
       `${setup2Rankings.length}개 스캐너 종목에서 과반 하락 패턴 확인`
-    )}</small></div>`;
+    )}</small></div>`
+      : `<span class="status-dot"></span><div><strong>${alphaCopy("2Blocks feed ready", "2Blocks 피드 준비 완료")}</strong><small>${alphaCopy(
+        `${setup3Rankings.length} bullish 5m reversals confirmed`,
+        `${setup3Rankings.length}개 5분봉 상승 반전 신호 확인`
+      )}</small></div>`;
   renderSetupRank();
 }
 
 function setActiveSetup(view, refresh = true) {
-  if (!["setup1", "setup2"].includes(view) || view === activeSetupView && qs("#setupPanel")?.dataset.activeSetup === view) return;
+  if (!["setup1", "setup2", "setup3"].includes(view) || view === activeSetupView && qs("#setupPanel")?.dataset.activeSetup === view) return;
   activeSetupView = view;
   setupRunToken += 1;
   setupLoading = false;
   expandedSetupSymbol = null;
   setupToggleToken += 1;
+  currentTimeframe = view === "setup3" ? "5M" : "1H";
+  qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === currentTimeframe));
   const panel = qs("#setupPanel");
   if (panel) panel.dataset.activeSetup = view;
   qsa("[data-setup-view]").forEach(button => {
@@ -1601,8 +1719,8 @@ function setView(view) {
     if (liveUniverseReady) refreshAlphaRank();
   }
   if (view === "setup") {
-    currentTimeframe = "1H";
-    qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === "1H"));
+    currentTimeframe = activeSetupView === "setup3" ? "5M" : "1H";
+    qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === currentTimeframe));
     renderSetupRank();
     if (liveUniverseReady) refreshSetupRank();
   }
@@ -1651,7 +1769,8 @@ function indicatorGuideCopy() {
         ]],
         ["Setup 1 / Setup 2", [
           ["Setup 1", "주간 고점 fakeout과 거래량 divergence, 하락봉 확인 조건을 만족하는 숏 후보 랭킹입니다."],
-          ["Setup 2", "최근 7일 동안 KST 04:00–09:00 구간에서 반복적으로 하락한 스캐너 종목 통계입니다."]
+          ["Setup 2", "최근 7일 동안 KST 04:00–09:00 구간에서 반복적으로 하락한 스캐너 종목 통계입니다."],
+          ["2Blocks", "5분봉에서 직전 음봉 몸통을 장악한 상승 Order Block과 바로 다음 양봉 확인을 포착합니다."]
         ]]
       ]
     };
@@ -1688,7 +1807,8 @@ function indicatorGuideCopy() {
       ]],
       ["Setup 1 / Setup 2", [
         ["Setup 1", "Ranks short candidates with weekly-high fakeout, volume divergence, and bearish confirmation."],
-        ["Setup 2", "Shows scanner symbols that repeatedly declined during KST 04:00–09:00 over the last seven sessions."]
+        ["Setup 2", "Shows scanner symbols that repeatedly declined during KST 04:00–09:00 over the last seven sessions."],
+        ["2Blocks", "Captures 5m bullish order block engulfing signals confirmed by the immediate next green candle."]
       ]]
     ]
   };
