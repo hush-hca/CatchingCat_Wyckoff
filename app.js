@@ -1438,6 +1438,7 @@ function buildLiquidationData(asset, timeframe) {
       low: base * lowWeight / weightTotal * 1_000_000
     };
     bars.push({
+      levelIndex: index,
       price: current + index * priceStep,
       distance,
       side: index < 0 ? "short" : index > 0 ? "long" : "current",
@@ -1471,7 +1472,8 @@ function renderLiquidationMap() {
   const minPrice = visible[0]?.price || current * 0.94;
   const maxPrice = visible.at(-1)?.price || current * 1.06;
   const x = price => M.left + ((price - minPrice) / Math.max(maxPrice - minPrice, 1)) * innerW;
-  const barWidth = Math.max(2.5, innerW / visible.length * 0.58);
+  const slotWidth = innerW / Math.max(visible.length - 1, 1);
+  const barWidth = Math.max(1.6, Math.min(6.5, slotWidth * 0.32));
   const barY = volume => M.top + innerH - Math.min(volume / 250_000_000, 1) * innerH;
   const barHeight = volume => Math.min(volume / 250_000_000, 1) * innerH;
   const cumY = volume => M.top + innerH - Math.min(volume / 7_000_000_000, 1) * innerH;
@@ -1518,7 +1520,7 @@ function renderLiquidationMap() {
       if (!liquidationVisibleLeverage[leverage]) return "";
       const height = barHeight(item.volumes[leverage]);
       yBase -= height;
-      return `<rect class="liq-bar ${leverage}" x="${(x(item.price) - barWidth / 2).toFixed(1)}" y="${yBase.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}" fill="${colors[leverage]}"/>`;
+      return `<rect class="liq-bar ${leverage}" data-liq-level="${item.levelIndex}" x="${(x(item.price) - barWidth / 2).toFixed(1)}" y="${yBase.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${height.toFixed(1)}" fill="${colors[leverage]}"/>`;
     }).join("");
   }).join("");
   liquidationChartState = { bars, visible, minPrice, maxPrice, current, W, H, M, innerW, innerH };
@@ -1585,6 +1587,8 @@ function updateLiquidationHover(event) {
   const price = state.minPrice + (svgX - state.M.left) / state.innerW * (state.maxPrice - state.minPrice);
   const nearest = state.visible.reduce((best, item) =>
     Math.abs(item.price - price) < Math.abs(best.price - price) ? item : best, state.visible[0]);
+  qsa(".liq-bar.hovered").forEach(bar => bar.classList.remove("hovered"));
+  qsa(`.liq-bar[data-liq-level="${nearest.levelIndex}"]`).forEach(bar => bar.classList.add("hovered"));
   const shortCumulative = state.visible
     .filter(item => item.price >= nearest.price && item.price <= state.current)
     .reduce((sum, item) => sum + item.activeVolume * 0.032, 0);
@@ -2327,6 +2331,7 @@ qs("#liquidationChart").onmousemove = panLiquidationChart;
 qs("#liquidationChart").onmouseleave = () => {
   qs("#liqCrosshair")?.setAttribute("hidden", "");
   qs("#liqTooltip")?.setAttribute("hidden", "");
+  qsa(".liq-bar.hovered").forEach(bar => bar.classList.remove("hovered"));
   stopLiquidationPan();
 };
 qs("#liquidationChart").onmousedown = startLiquidationPan;
