@@ -241,6 +241,7 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liquidation-controls select:focus { border-color:rgba(72,229,155,.38);box-shadow:0 0 0 3px rgba(72,229,155,.08); }
 .liquidation-refresh { align-self:flex-end;height:34px;padding:0 14px;font-size:10px; }
 .liquidation-refresh:disabled { opacity:.5;cursor:wait; }
+.liquidation-data-note { margin:-3px 0 12px;border:1px solid rgba(255,141,85,.16);border-radius:9px;background:rgba(255,141,85,.055);color:#c29676;font-size:10px;line-height:1.55;padding:9px 11px; }
 .liquidation-chart-card { position:relative;border:1px solid var(--line);border-radius:14px;background:#07110e;padding:16px 16px 14px;overflow:hidden; }
 .liquidation-legend { position:absolute;top:18px;left:50%;transform:translateX(-50%);z-index:2;display:flex;align-items:center;gap:18px;color:#93a79d;font-size:10px;white-space:nowrap; }
 .liquidation-legend button { display:flex;align-items:center;gap:6px;border:0;border-radius:999px;background:rgba(190,225,209,.06);color:inherit;font:700 10px Manrope;padding:5px 9px;cursor:pointer;opacity:.42;transition:.16s; }
@@ -561,6 +562,7 @@ html[data-theme="light"] .liq-grid text,
 html[data-theme="light"] .liq-axis-right,
 html[data-theme="light"] .liq-price-tick { fill:#65786f; }
 html[data-theme="light"] .liquidation-legend { color:#5f746a; }
+html[data-theme="light"] .liquidation-data-note { background:rgba(255,141,85,.08);color:#986541; }
 html[data-theme="light"] .liquidation-legend button { background:rgba(47,111,175,.06); }
 html[data-theme="light"] .liquidation-legend button.active { background:rgba(47,111,175,.12); }
 html[data-theme="light"] .liquidation-navigator { background:rgba(103,151,255,.08); }

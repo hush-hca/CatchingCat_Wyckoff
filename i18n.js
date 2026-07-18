@@ -9,6 +9,7 @@
     "Explore liquidation clusters by project, timeframe, leverage distance, and cumulative pressure.": "종목, 시간대, 레버리지 거리, 누적 압력 기준으로 청산 클러스터를 탐색합니다.",
     "Project": "종목",
     "Search BTC, SUI, ETH...": "BTC, SUI, ETH 검색...",
+    "Simulated liquidation density map · price is synced from Binance Futures mark price, but liquidation bars are modeled estimates, not live exchange liquidation book data.": "시뮬레이션 청산 밀도 맵 · 가격은 Binance Futures mark price와 동기화되지만, 청산 막대는 모델링된 추정치이며 실시간 거래소 청산 장부 데이터가 아닙니다.",
     "Timeframe": "시간대",
     "Low leverage": "낮은 레버리지",
     "Medium leverage": "중간 레버리지",

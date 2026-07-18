@@ -1389,6 +1389,14 @@ function moneyAxis(value, decimals = 0) {
   return `${value.toFixed(0)}`;
 }
 
+function formatLiquidationPrice(value) {
+  if (value >= 1000) return Math.round(value).toLocaleString();
+  if (value >= 100) return value.toFixed(1);
+  if (value >= 10) return value.toFixed(2);
+  if (value >= 1) return value.toFixed(3);
+  return value.toFixed(5);
+}
+
 function liquidationSeed(symbol, timeframe) {
   return `${symbol}${timeframe}`.split("").reduce((sum, character) => sum + character.charCodeAt(0), 0);
 }
@@ -1455,7 +1463,7 @@ function setLiquidationSymbolFromSearch(value) {
 function buildLiquidationData(asset, timeframe) {
   const seed = liquidationSeed(asset.symbol, timeframe);
   const current = Number(asset.price) || 64132;
-  const priceStep = 10;
+  const priceStep = current >= 1000 ? 10 : current >= 100 ? 1 : current >= 10 ? 0.1 : current >= 1 ? 0.01 : 0.001;
   const bars = [];
   for (let index = -60; index <= 60; index += 1) {
     const distance = Math.abs(index) / 60;
@@ -1475,9 +1483,11 @@ function buildLiquidationData(asset, timeframe) {
       medium: base * mediumWeight / weightTotal * 1_000_000,
       low: base * lowWeight / weightTotal * 1_000_000
     };
+    const price = current + index * priceStep;
+    if (price <= 0) continue;
     bars.push({
       levelIndex: index,
-      price: current + index * priceStep,
+      price,
       distance,
       side: index < 0 ? "short" : index > 0 ? "long" : "current",
       volumes,
@@ -1548,7 +1558,7 @@ function renderLiquidationMap() {
   const tickSpacing = innerW / Math.max(visible.length - 1, 1);
   const tickLabelStep = Math.max(1, Math.ceil(44 / Math.max(tickSpacing, 1)));
   const priceTicks = visible.filter((_, index) => index % tickLabelStep === 0 || index === visible.length - 1).map(item => item.price);
-  qs("#liqCurrentPrice").textContent = `Current Price : ${Math.round(current).toLocaleString()}`;
+  qs("#liqCurrentPrice").textContent = `Current Price : ${formatLiquidationPrice(current)}`;
   qsa("[data-liq-leverage]").forEach(button => {
     button.classList.toggle("active", Boolean(liquidationVisibleLeverage[button.dataset.liqLeverage]));
   });
@@ -1581,7 +1591,7 @@ function renderLiquidationMap() {
     <path class="liq-line short" d="${linePath(shortPoints)}"/>
     <path class="liq-line long" d="${linePath(longPoints)}"/>
     ${Number.isFinite(currentX) && currentX >= M.left && currentX <= W - M.right ? `<line class="liq-current-line" x1="${currentX.toFixed(1)}" x2="${currentX.toFixed(1)}" y1="${M.top + innerH}" y2="${M.top + 8}" marker-end="url(#liqArrow)"/>` : ""}
-    ${priceTicks.map(price => `<text class="liq-price-tick" x="${x(price).toFixed(1)}" y="${H - 20}" text-anchor="middle">${Math.round(price).toLocaleString()}</text>`).join("")}
+    ${priceTicks.map(price => `<text class="liq-price-tick" x="${x(price).toFixed(1)}" y="${H - 20}" text-anchor="middle">${formatLiquidationPrice(price)}</text>`).join("")}
   </svg><div class="liq-crosshair" id="liqCrosshair" hidden></div><div class="liq-tooltip" id="liqTooltip" hidden></div>`;
   mini.innerHTML = `<svg viewBox="0 0 ${W} 58" preserveAspectRatio="none">
     <rect x="0" y="0" width="${W}" height="58" rx="9" class="liq-mini-bg"/>
@@ -1657,7 +1667,7 @@ function updateLiquidationHover(event) {
   const leftPercent = Math.max(0, Math.min(100, localX / Math.max(rect.width, 1) * 100));
   crosshair.style.left = `${leftPercent}%`;
   crosshair.hidden = false;
-  tooltip.innerHTML = `<strong>${Math.round(nearest.price).toLocaleString()}</strong>
+  tooltip.innerHTML = `<strong>${formatLiquidationPrice(nearest.price)}</strong>
     <span>Cumulative: ${moneyAxis(cumulative, 2)}</span>
     <span><i class="liq-high"></i> High ${moneyAxis(nearest.volumes.high, 2)}</span>
     <span><i class="liq-medium"></i> Medium ${moneyAxis(nearest.volumes.medium, 2)}</span>
