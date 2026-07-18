@@ -241,7 +241,7 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liquidation-legend button.active { opacity:1;background:rgba(190,225,209,.11); }
 .liquidation-legend button:hover { transform:translateY(-1px); }
 .liquidation-legend i { width:22px;height:10px;border-radius:3px;display:inline-block;box-shadow:0 2px 8px rgba(0,0,0,.16); }
-.liq-low { background:#5c91fa; }.liq-medium { background:#9b7ef2; }.liq-high { background:#f2913d; }
+.liq-low { background:#2762d9; }.liq-medium { background:#9b7ef2; }.liq-high { background:#f2913d; }
 .liquidation-current { position:absolute;top:52px;left:50%;transform:translateX(-50%);z-index:2;color:#ff5151;font:600 10px "DM Mono";white-space:nowrap; }
 .liquidation-chart { position:relative;width:100%;height:570px;cursor:grab;user-select:none;touch-action:none; }
 .liquidation-chart.dragging { cursor:grabbing; }
