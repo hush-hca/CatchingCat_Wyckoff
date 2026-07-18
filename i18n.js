@@ -14,8 +14,6 @@
     "Medium leverage": "중간 레버리지",
     "High leverage": "높은 레버리지",
     "Current Price": "현재가",
-    "Short liquidation zone": "숏 청산 구간",
-    "Long liquidation zone": "롱 청산 구간",
     "Cumulative": "누적",
     "High": "높음",
     "Medium": "중간",

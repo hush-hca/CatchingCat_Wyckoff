@@ -1575,8 +1575,6 @@ function renderLiquidationMap() {
       const y = M.top + innerH - value / 7 * innerH;
       return `<text class="liq-axis-right" x="${W - M.right + 10}" y="${y + 4}">${value ? value.toFixed(2) + "B" : "0"}</text>`;
     }).join("")}
-    <text class="liq-zone short-zone" x="${M.left + innerW * 0.22}" y="${M.top + 18}">Short liquidation zone</text>
-    <text class="liq-zone long-zone" x="${M.left + innerW * 0.78}" y="${M.top + 18}" text-anchor="end">Long liquidation zone</text>
     <path class="liq-area short" d="${areaPath(shortPoints)}"/>
     <path class="liq-area long" d="${areaPath(longPoints)}"/>
     ${stackedBars}

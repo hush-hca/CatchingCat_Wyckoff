@@ -255,8 +255,6 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liq-bg { fill:#0a1512; }
 .liq-grid line { stroke:rgba(190,225,209,.08);stroke-dasharray:4 5; }
 .liq-grid text,.liq-axis-right,.liq-price-tick { fill:#70867c;font:500 10px "DM Mono"; }
-.liq-zone { fill:#71877d;font:700 10px Manrope;letter-spacing:.08em;text-transform:uppercase;opacity:.78; }
-.short-zone { fill:#ff7878; }.long-zone { fill:#58d493; }
 .liq-area.short { fill:rgba(255,81,81,.12); }
 .liq-area.long { fill:rgba(72,229,155,.12); }
 .liq-line { fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 5px rgba(0,0,0,.22)); }
