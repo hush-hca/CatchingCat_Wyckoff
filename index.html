@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=nav-font-1" />
+    <link rel="stylesheet" href="styles.css?v=indicator-guide-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -63,12 +63,10 @@
             <div><small>Market feed</small><strong id="feedStatus">Connecting…</strong></div>
           </div>
           <button class="icon-button theme-button" id="themeToggle" type="button" aria-label="Switch to light mode" title="Switch to light mode" data-i18n-ignore>☼</button>
-          <button class="icon-button" id="alertBtn" aria-label="View alerts">♢<b>3</b></button>
+          <button class="icon-button guide-button" id="indicatorGuideBtn" type="button" aria-label="Indicator guide" title="Indicator guide" data-i18n-ignore>?</button>
           <button class="clearance" id="alphaRankBtn"><span>α</span> Open Alpha Rank</button>
         </div>
       </header>
-
-      <section class="ticker-strip" id="tickerStrip"></section>
 
       <section class="summary-grid">
         <article class="summary-card">
@@ -346,8 +344,18 @@
       </form>
     </dialog>
 
+    <dialog id="indicatorGuideDialog">
+      <form method="dialog" class="modal indicator-modal">
+        <button class="modal-close" value="cancel">×</button>
+        <span class="modal-kicker" id="indicatorGuideKicker">INDICATOR GUIDE</span>
+        <h2 id="indicatorGuideTitle">What each indicator means</h2>
+        <p id="indicatorGuideIntro">Use this as a quick map while trading. These indicators support decisions; they do not trigger trades automatically.</p>
+        <div class="indicator-guide-body" id="indicatorGuideBody"></div>
+      </form>
+    </dialog>
+
     <script src="i18n.js?v=alpha-help-ko-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=setup-nav-1"></script>
+    <script src="app.js?v=indicator-guide-1"></script>
   </body>
 </html>

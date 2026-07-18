@@ -103,12 +103,14 @@ function readStorage(key, fallback) {
 }
 
 function renderTickers() {
+  const tickerStrip = qs("#tickerStrip");
+  if (!tickerStrip) return;
   const extras = [
     { symbol: "BTC", price: 104382.2, change: 0.81 },
     { symbol: "ETH", price: 3384.1, change: 1.25 },
     { symbol: "TOTAL3", price: 842.6, change: 1.84 }
   ];
-  qs("#tickerStrip").innerHTML = extras.concat(assets.slice(0, 4)).map(asset =>
+  tickerStrip.innerHTML = extras.concat(assets.slice(0, 4)).map(asset =>
     `<span>${asset.symbol}<b>${fmt(asset.price)}</b><i class="${asset.change >= 0 ? "up" : "down"}">${asset.change >= 0 ? "+" : ""}${asset.change.toFixed(2)}%</i></span>`
   ).join("");
 }
@@ -1614,6 +1616,100 @@ function showToast(title, detail, icon = "✓") {
   setTimeout(() => toast.remove(), 3800);
 }
 
+function indicatorGuideCopy() {
+  const korean = window.I18N?.language === "ko";
+  if (korean) {
+    return {
+      kicker: "지표 가이드",
+      title: "각 페이지 지표의 의미",
+      intro: "트레이딩 중 빠르게 참고하는 지도입니다. Catching Cat의 지표는 판단을 돕지만 자동으로 매매를 실행하지 않습니다.",
+      sections: [
+        ["Dashboard", [
+          ["Qualified universe", "바이낸스 현물+선물 조건과 블랙리스트 필터를 통과해 스캔 대상이 된 종목 수입니다."],
+          ["Volume ignitions", "최근 1분 거래량이 직전 평균 대비 급증한 종목 수입니다."],
+          ["BTC environment", "BTC 24시간 변동률로 전체 시장 환경을 간단히 방어적/우호적/고변동으로 표시합니다."]
+        ]],
+        ["Wyckoff Scanner", [
+          ["Price / 24h", "현재가와 24시간 등락률입니다."],
+          ["Rel. volume", "현재 참여도가 최근 기준 거래량 대비 얼마나 큰지 보여줍니다."],
+          ["Wyckoff phase", "200캔들 구조 분석으로 추정한 Accumulation/Distribution 단계입니다."],
+          ["Signal", "Spring, breakout, range watch 등 현재 구조에서 관찰할 행동 단서입니다."]
+        ]],
+        ["Volume Fire", [
+          ["RVOL bar", "1분 거래량이 기준선 대비 얼마나 강하게 점화됐는지 빠르게 비교합니다."],
+          ["Threshold", "Settings에서 정한 RVOL 기준을 넘으면 ignition으로 집계됩니다."]
+        ]],
+        ["Watchlist", [
+          ["Focused universe", "사용자가 직접 고른 종목만 보여줍니다."],
+          ["Inline chart", "종목 클릭 시 차트와 Alpha 점수 요약을 같은 위치에서 확인합니다."]
+        ]],
+        ["Alpha Rank", [
+          ["Total score", "추세 명확도 50점, VWAP 근접도 30점, 거래량 고갈 20점을 합산한 우선순위입니다."],
+          ["Trend", "1H/4H 100·200 SMA 정렬과 200 SMA 기울기로 큰 추세가 선명한지 평가합니다."],
+          ["VWAP", "현재가가 세션 VWAP에 얼마나 정밀하게 붙어 있는지 평가합니다."],
+          ["Dry-up", "참조선 근처에서 현재 거래량이 최근 평균보다 줄어드는지 봅니다."]
+        ]],
+        ["Setup 1 / Setup 2", [
+          ["Setup 1", "주간 고점 fakeout과 거래량 divergence, 하락봉 확인 조건을 만족하는 숏 후보 랭킹입니다."],
+          ["Setup 2", "최근 7일 동안 KST 04:00–09:00 구간에서 반복적으로 하락한 스캐너 종목 통계입니다."]
+        ]]
+      ]
+    };
+  }
+  return {
+    kicker: "Indicator guide",
+    title: "What each page indicator means",
+    intro: "Use this as a quick map while trading. Catching Cat indicators support decisions; they never execute trades automatically.",
+    sections: [
+      ["Dashboard", [
+        ["Qualified universe", "How many assets passed the Binance spot + futures eligibility and blacklist filters."],
+        ["Volume ignitions", "How many assets have abnormal one-minute volume versus the recent baseline."],
+        ["BTC environment", "A quick defensive/constructive/volatile market read from BTC 24h movement."]
+      ]],
+      ["Wyckoff Scanner", [
+        ["Price / 24h", "Current price and 24-hour percentage change."],
+        ["Rel. volume", "How strong current participation is versus recent baseline volume."],
+        ["Wyckoff phase", "The estimated Accumulation/Distribution phase from 200-candle structure analysis."],
+        ["Signal", "The current structural clue, such as spring, breakout, or range watch."]
+      ]],
+      ["Volume Fire", [
+        ["RVOL bar", "Compares one-minute volume ignition strength across symbols."],
+        ["Threshold", "Assets above the Settings RVOL threshold are counted as ignitions."]
+      ]],
+      ["Watchlist", [
+        ["Focused universe", "Only the symbols you manually selected for closer monitoring."],
+        ["Inline chart", "Click a symbol to view its chart and Alpha score summary in place."]
+      ]],
+      ["Alpha Rank", [
+        ["Total score", "A priority score made from trend clarity 50, VWAP proximity 30, and volume dry-up 20."],
+        ["Trend", "Checks 1H/4H 100·200 SMA alignment and 200 SMA slope clarity."],
+        ["VWAP", "Measures how precisely price is converging with the session VWAP."],
+        ["Dry-up", "Checks whether current volume is fading near the reference line."]
+      ]],
+      ["Setup 1 / Setup 2", [
+        ["Setup 1", "Ranks short candidates with weekly-high fakeout, volume divergence, and bearish confirmation."],
+        ["Setup 2", "Shows scanner symbols that repeatedly declined during KST 04:00–09:00 over the last seven sessions."]
+      ]]
+    ]
+  };
+}
+
+function openIndicatorGuide() {
+  const dialog = qs("#indicatorGuideDialog");
+  if (!dialog) return;
+  const copy = indicatorGuideCopy();
+  qs("#indicatorGuideKicker").textContent = copy.kicker;
+  qs("#indicatorGuideTitle").textContent = copy.title;
+  qs("#indicatorGuideIntro").textContent = copy.intro;
+  qs("#indicatorGuideBody").innerHTML = copy.sections.map(([title, items]) => `
+    <section class="indicator-guide-section">
+      <h3>${escapeHtml(title)}</h3>
+      ${items.map(([label, detail]) => `<div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(detail)}</small></div>`).join("")}
+    </section>
+  `).join("");
+  dialog.showModal();
+}
+
 async function refreshLiveData() {
   if (structureAnalysisPromise) return;
   try {
@@ -1743,7 +1839,7 @@ qs("#saveSettingsBtn").onclick = () => {
   refreshLiveData();
   showToast("Scanner settings saved", "Keyless blacklist refreshed with the 40% domestic-volume rule.");
 };
-qs("#alertBtn").onclick = () => showToast("3 scanner notices", "SUI spring test · ONDO breakout watch · ENA accumulation", "!");
+qs("#indicatorGuideBtn").onclick = openIndicatorGuide;
 qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
