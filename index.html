@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=liquidation-refresh-1" />
+    <link rel="stylesheet" href="styles.css?v=liquidation-search-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -220,9 +220,8 @@
           <div class="liquidation-controls">
             <label>
               <span>Project</span>
-              <select id="liqSymbolSelect">
-                <option value="BTC">BTCUSDT</option>
-              </select>
+              <input id="liqSymbolSearch" type="search" list="liqSymbolOptions" value="BTCUSDT" placeholder="Search BTC, SUI, ETH..." autocomplete="off" />
+              <datalist id="liqSymbolOptions"></datalist>
             </label>
             <label>
               <span>Timeframe</span>
@@ -382,8 +381,8 @@
       </form>
     </dialog>
 
-    <script src="i18n.js?v=liquidation-refresh-1"></script>
+    <script src="i18n.js?v=liquidation-search-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=liquidation-mark-price-1"></script>
+    <script src="app.js?v=liquidation-search-1"></script>
   </body>
 </html>

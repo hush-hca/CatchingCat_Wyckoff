@@ -1418,15 +1418,38 @@ async function fetchLiquidationCurrentPrice(symbol) {
 }
 
 function syncLiquidationControls() {
-  const select = qs("#liqSymbolSelect");
-  if (!select) return;
+  const input = qs("#liqSymbolSearch");
+  const options = qs("#liqSymbolOptions");
+  if (!input || !options) return;
   const current = liquidationSymbol.replace(/USDT$/, "");
-  const symbols = [...new Set(["BTC", "ETH", ...assets.map(asset => asset.symbol)])].slice(0, 80);
-  select.innerHTML = symbols.map(symbol => `<option value="${escapeHtml(symbol)}">${escapeHtml(symbol)}USDT</option>`).join("");
-  liquidationSymbol = symbols.includes(current) ? current : symbols[0] || "BTC";
-  select.value = liquidationSymbol;
+  const assetMap = new Map([
+    ["BTC", { symbol: "BTC", name: "Bitcoin" }],
+    ["ETH", { symbol: "ETH", name: "Ethereum" }],
+    ...assets.map(asset => [asset.symbol, asset])
+  ]);
+  const symbols = [...assetMap.keys()].slice(0, 120);
+  options.innerHTML = symbols.map(symbol => {
+    const asset = assetMap.get(symbol);
+    const label = asset?.name && asset.name !== symbol ? `${symbol}USDT · ${asset.name}` : `${symbol}USDT`;
+    return `<option value="${escapeHtml(symbol)}USDT" label="${escapeHtml(label)}"></option>`;
+  }).join("");
+  liquidationSymbol = current || symbols[0] || "BTC";
+  if (document.activeElement !== input) input.value = `${liquidationSymbol}USDT`;
   const timeframe = qs("#liqTimeframeSelect");
   if (timeframe) timeframe.value = liquidationTimeframe;
+}
+
+function setLiquidationSymbolFromSearch(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return;
+  const cleaned = raw.split(/\s|·|\//)[0].replace(/[^A-Z0-9]/g, "").replace(/USDT$/, "");
+  const byName = assets.find(asset => asset.name?.toUpperCase() === raw || asset.symbol.toUpperCase() === cleaned);
+  const symbol = (byName?.symbol || cleaned || "BTC").replace(/USDT$/, "");
+  liquidationSymbol = symbol;
+  const input = qs("#liqSymbolSearch");
+  if (input) input.value = `${symbol}USDT`;
+  renderLiquidationMap();
+  void refreshLiquidationMap({ silent: true });
 }
 
 function buildLiquidationData(asset, timeframe) {
@@ -2336,10 +2359,12 @@ if (qs("#alphaRankBtn")) qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
-qs("#liqSymbolSelect").onchange = event => {
-  liquidationSymbol = event.target.value;
-  renderLiquidationMap();
-  void refreshLiquidationMap({ silent: true });
+qs("#liqSymbolSearch").onchange = event => setLiquidationSymbolFromSearch(event.target.value);
+qs("#liqSymbolSearch").onkeydown = event => {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  event.currentTarget.blur();
+  setLiquidationSymbolFromSearch(event.currentTarget.value);
 };
 qs("#liqTimeframeSelect").onchange = event => {
   liquidationTimeframe = event.target.value;

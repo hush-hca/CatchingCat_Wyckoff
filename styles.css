@@ -234,7 +234,11 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liquidation-panel { display:none;grid-column:1/-1;padding:16px;overflow:visible; }
 .liquidation-controls { display:flex;gap:8px;align-items:center;margin-bottom:12px; }
 .liquidation-controls label { display:flex;flex-direction:column;gap:5px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em; }
-.liquidation-controls select { min-width:108px;height:34px;border:1px solid var(--line);border-radius:8px;background:#08110e;color:var(--text);font:600 10px Manrope;padding:0 28px 0 11px;outline:none; }
+.liquidation-controls select,
+.liquidation-controls input { min-width:108px;height:34px;border:1px solid var(--line);border-radius:8px;background:#08110e;color:var(--text);font:600 10px Manrope;padding:0 28px 0 11px;outline:none; }
+.liquidation-controls input { min-width:184px;text-transform:uppercase; }
+.liquidation-controls input:focus,
+.liquidation-controls select:focus { border-color:rgba(72,229,155,.38);box-shadow:0 0 0 3px rgba(72,229,155,.08); }
 .liquidation-refresh { align-self:flex-end;height:34px;padding:0 14px;font-size:10px; }
 .liquidation-refresh:disabled { opacity:.5;cursor:wait; }
 .liquidation-chart-card { position:relative;border:1px solid var(--line);border-radius:14px;background:#07110e;padding:16px 16px 14px;overflow:hidden; }
@@ -551,6 +555,7 @@ html[data-theme="light"] .alpha-status,
 html[data-theme="light"] .filter-policy,
 html[data-theme="light"] .check-asset { background:#f5f9f7; }
 html[data-theme="light"] .liquidation-controls select,
+html[data-theme="light"] .liquidation-controls input,
 html[data-theme="light"] .liquidation-chart-card { background:#ffffff; }
 html[data-theme="light"] .liq-bg { fill:#ffffff; }
 html[data-theme="light"] .liq-grid line { stroke:rgba(33,55,46,.08); }

@@ -8,6 +8,7 @@
     "Liquidation Map": "청산 맵",
     "Explore liquidation clusters by project, timeframe, leverage distance, and cumulative pressure.": "종목, 시간대, 레버리지 거리, 누적 압력 기준으로 청산 클러스터를 탐색합니다.",
     "Project": "종목",
+    "Search BTC, SUI, ETH...": "BTC, SUI, ETH 검색...",
     "Timeframe": "시간대",
     "Low leverage": "낮은 레버리지",
     "Medium leverage": "중간 레버리지",
