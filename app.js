@@ -1478,7 +1478,7 @@ function renderLiquidationMap() {
   const barHeight = volume => Math.min(volume / 250_000_000, 1) * innerH;
   const cumY = volume => M.top + innerH - Math.min(volume / 7_000_000_000, 1) * innerH;
   const currentX = x(current);
-  const colors = { low: "#6797ff", medium: "#a889ff", high: "#ff9148" };
+  const colors = { low: "#5c91fa", medium: "#9b7ef2", high: "#f2913d" };
   const gridLeft = [0, 50, 100, 150, 200, 250];
   const gridRight = [0, 1, 2, 3, 4, 5, 6, 7];
   const shortBars = visible.filter(item => item.price <= current).sort((a, b) => a.price - b.price);
