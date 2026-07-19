@@ -64,6 +64,7 @@ let setup2VolumeSort = "desc";
 let liquidationSymbol = "BTC";
 let liquidationTimeframe = "12h";
 let liquidationRange = { start: 0, end: 100 };
+const LIQUIDATION_MIN_RANGE = 2;
 let liquidationVisibleLeverage = { low: true, medium: true, high: true };
 let liquidationChartState = null;
 let liquidationDragState = null;
@@ -1669,12 +1670,12 @@ async function refreshLiquidationMap({ silent = false } = {}) {
 }
 
 function setLiquidationRange(start, end) {
-  const width = Math.max(20, Math.min(100, end - start));
+  const width = Math.max(LIQUIDATION_MIN_RANGE, Math.min(100, end - start));
   let nextStart = Math.max(0, Math.min(100 - width, start));
   let nextEnd = nextStart + width;
   liquidationRange = { start: nextStart, end: nextEnd };
-  if (qs("#liqRangeStart")) qs("#liqRangeStart").value = Math.min(80, nextStart);
-  if (qs("#liqRangeEnd")) qs("#liqRangeEnd").value = Math.max(20, nextEnd);
+  if (qs("#liqRangeStart")) qs("#liqRangeStart").value = Math.min(100 - LIQUIDATION_MIN_RANGE, nextStart);
+  if (qs("#liqRangeEnd")) qs("#liqRangeEnd").value = Math.max(LIQUIDATION_MIN_RANGE, nextEnd);
 }
 
 function updateLiquidationHover(event) {
@@ -1724,7 +1725,7 @@ function zoomLiquidationChart(event) {
   const rect = qs("#liquidationChart").getBoundingClientRect();
   const pointer = Math.max(0, Math.min(1, (event.clientX - rect.left) / Math.max(rect.width, 1)));
   const width = liquidationRange.end - liquidationRange.start;
-  const nextWidth = Math.max(20, Math.min(100, width * (event.deltaY > 0 ? 1.12 : 0.88)));
+  const nextWidth = Math.max(LIQUIDATION_MIN_RANGE, Math.min(100, width * (event.deltaY > 0 ? 1.12 : 0.82)));
   const anchor = liquidationRange.start + width * pointer;
   const nextStart = anchor - nextWidth * pointer;
   setLiquidationRange(nextStart, nextStart + nextWidth);
@@ -2430,18 +2431,18 @@ qs("#liqTimeframeSelect").onchange = event => {
 };
 qs("#refreshLiquidationBtn").onclick = () => refreshLiquidationMap();
 qs("#liqRangeStart").oninput = event => {
-  setLiquidationRange(Math.min(Number(event.target.value), liquidationRange.end - 20), liquidationRange.end);
+  setLiquidationRange(Math.min(Number(event.target.value), liquidationRange.end - LIQUIDATION_MIN_RANGE), liquidationRange.end);
   renderLiquidationMap();
 };
 qs("#liqRangeEnd").oninput = event => {
-  setLiquidationRange(liquidationRange.start, Math.max(Number(event.target.value), liquidationRange.start + 20));
+  setLiquidationRange(liquidationRange.start, Math.max(Number(event.target.value), liquidationRange.start + LIQUIDATION_MIN_RANGE));
   renderLiquidationMap();
 };
 qs("#liquidationNavigator").onwheel = event => {
   event.preventDefault();
   const width = liquidationRange.end - liquidationRange.start;
   const delta = event.deltaY > 0 ? 6 : -6;
-  const nextWidth = Math.max(20, Math.min(100, width + delta));
+  const nextWidth = Math.max(LIQUIDATION_MIN_RANGE, Math.min(100, width + delta));
   const center = (liquidationRange.start + liquidationRange.end) / 2;
   setLiquidationRange(center - nextWidth / 2, center + nextWidth / 2);
   renderLiquidationMap();

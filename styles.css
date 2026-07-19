@@ -261,7 +261,7 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .liq-area.long { fill:rgba(72,229,155,.12); }
 .liq-line { fill:none;stroke-width:2.1;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 5px rgba(0,0,0,.22)); }
 .liq-line.short { stroke:#ff6b6b; }.liq-line.long { stroke:#52bf8b; }
-.liq-bar { opacity:.72;rx:2;transition:opacity .12s ease,filter .12s ease; }
+.liq-bar { opacity:.72;transition:opacity .12s ease,filter .12s ease; }
 .liq-bar.high { opacity:.94; }
 .liq-bar.hovered { opacity:1;filter:brightness(1.28) saturate(1.12) drop-shadow(0 0 6px rgba(255,255,255,.22)); }
 .liq-current-line { stroke:#ff5151;stroke-width:1.8;stroke-dasharray:7 6; }
