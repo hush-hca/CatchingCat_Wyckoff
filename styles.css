@@ -117,6 +117,9 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .muted { color:var(--muted);font-size:10px;margin:4px 0; }
 .orange-text { color:var(--orange); }
 .live-badge { color:var(--orange);background:rgba(255,141,85,.09);padding:5px 7px;border-radius:4px;font:500 10px "DM Mono"; }.live-badge i{display:inline-block;width:4px;height:4px;border-radius:50%;background:var(--orange);margin-right:4px}
+.fire-actions { display:flex;align-items:center;gap:8px; }
+.fire-refresh { width:auto;height:29px;margin:0;padding:0 12px; }
+.fire-refresh:disabled { opacity:.55;cursor:wait; }
 .fire-list { margin-top:13px;display:flex;flex-direction:column;gap:9px; }
 .fire-row { display:grid;grid-template-columns:48px 1fr 35px;align-items:center;gap:8px;font:500 10px "DM Mono";width:100%;padding:0;border:0;background:transparent;color:var(--text);text-align:left;cursor:pointer; }
 .fire-row:disabled { cursor:default; }

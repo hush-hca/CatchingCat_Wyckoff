@@ -21,6 +21,8 @@
     "Far": "원거리",
     "Refresh": "새로고침",
     "Refreshing...": "새로고침 중...",
+    "Volume Fire refreshed": "Volume Fire 새로고침 완료",
+    "Latest Binance volume data has been loaded.": "최신 Binance 거래량 데이터를 불러왔습니다.",
     "Watchlist": "관심종목",
     "Edge": "엣지",
     "Alpha Rank": "알파 랭크",

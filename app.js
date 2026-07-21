@@ -2344,6 +2344,22 @@ async function refreshLiveData() {
   if (currentView === "liquidation") void refreshLiquidationMap({ silent: true });
 }
 
+async function refreshVolumeFire() {
+  const button = qs("#refreshVolumeFireBtn");
+  if (!button || button.disabled) return;
+  button.disabled = true;
+  button.textContent = window.I18N?.tr("Refreshing...") || "Refreshing...";
+  try {
+    if (structureAnalysisPromise) await structureAnalysisPromise.catch(() => {});
+    await refreshLiveData();
+    renderFire();
+    showToast("Volume Fire refreshed", "Latest Binance volume data has been loaded.", "↻");
+  } finally {
+    button.textContent = window.I18N?.tr("Refresh") || "Refresh";
+    button.disabled = false;
+  }
+}
+
 function renderAll() {
   qs("#universeCount").textContent = assets.length;
   renderTickers();
@@ -2415,6 +2431,7 @@ qs("#saveSettingsBtn").onclick = () => {
 };
 qs("#indicatorGuideBtn").onclick = openIndicatorGuide;
 if (qs("#alphaRankBtn")) qs("#alphaRankBtn").onclick = () => setView("alpha");
+qs("#refreshVolumeFireBtn").onclick = refreshVolumeFire;
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
