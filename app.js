@@ -61,6 +61,8 @@ let activeSetupView = "setup1";
 let setup2Rankings = [];
 let setup3Rankings = [];
 let setup2VolumeSort = "desc";
+let setup3TimeWindow = "all";
+let setup3AtrSort = null;
 let liquidationSymbol = "BTC";
 let liquidationTimeframe = "12h";
 let liquidationRange = { start: 0, end: 100 };
@@ -1758,6 +1760,22 @@ function stopLiquidationPan() {
   qs("#liquidationChart")?.classList.remove("dragging");
 }
 
+function calculateAtr(candles, endIndex, period = 14) {
+  const start = Math.max(1, endIndex - period + 1);
+  const ranges = [];
+  for (let index = start; index <= endIndex; index += 1) {
+    const candle = candles[index];
+    const previous = candles[index - 1];
+    if (!candle || !previous) continue;
+    ranges.push(Math.max(
+      candle.high - candle.low,
+      Math.abs(candle.high - previous.close),
+      Math.abs(candle.low - previous.close)
+    ));
+  }
+  return ranges.length ? ranges.reduce((sum, value) => sum + value, 0) / ranges.length : 0;
+}
+
 async function analyze2BlocksAsset(asset) {
   const [candles, hourlyCandles] = await Promise.all([
     fetchPublicKlines(asset.symbol, "5m", 96),
@@ -1777,6 +1795,7 @@ async function analyze2BlocksAsset(asset) {
     if (!candleBodyEngulfed(previous, orderBlock)) continue;
     const bodyExpansion = Math.abs(orderBlock.close - orderBlock.open) / Math.max(Math.abs(previous.open - previous.close), previous.close * 0.0001);
     const confirmationMove = orderBlock.close ? confirmation.close / orderBlock.close - 1 : 0;
+    const atr = calculateAtr(completed, index + 1);
     const quoteVolume = [previous, orderBlock, confirmation].reduce((sum, candle) => {
       const fallbackQuoteVolume = candle.volume * ((candle.high + candle.low + candle.close) / 3);
       return sum + (Number.isFinite(candle.quoteVolume) && candle.quoteVolume > 0 ? candle.quoteVolume : fallbackQuoteVolume);
@@ -1797,6 +1816,8 @@ async function analyze2BlocksAsset(asset) {
       confirmationClose: confirmation.close,
       bodyExpansion,
       confirmationMove,
+      atr,
+      atrPercent: confirmation.close ? atr / confirmation.close : 0,
       quoteVolume,
       sparkline: hourlyPath.length >= 2
         ? hourlyPath
@@ -1829,6 +1850,46 @@ function updateSetup2VolumeSort() {
   expandedSetupSymbol = null;
   setupToggleToken += 1;
   renderSetupRank();
+}
+
+function setup3WindowMs() {
+  return {
+    "15m": 15 * 60_000,
+    "30m": 30 * 60_000,
+    "1h": 60 * 60_000,
+    "2h": 2 * 60 * 60_000
+  }[setup3TimeWindow] || Infinity;
+}
+
+function sortedSetup3Rankings() {
+  const cutoff = Date.now() - setup3WindowMs();
+  const filtered = setup3Rankings
+    .filter(item => setup3TimeWindow === "all" || item.triggerTime >= cutoff)
+    .sort((left, right) => right.triggerTime - left.triggerTime);
+  if (!setup3AtrSort) return filtered;
+  return filtered
+    .map((item, originalIndex) => ({ item, originalIndex }))
+    .sort((left, right) => {
+      const difference = (left.item.atrPercent || 0) - (right.item.atrPercent || 0);
+      return difference
+        ? (setup3AtrSort === "asc" ? difference : -difference)
+        : left.originalIndex - right.originalIndex;
+    })
+    .map(entry => entry.item);
+}
+
+function updateSetup3TimeWindow(value) {
+  setup3TimeWindow = value || "all";
+  expandedSetupSymbol = null;
+  setupToggleToken += 1;
+  renderSetupRank(false);
+}
+
+function updateSetup3AtrSort() {
+  setup3AtrSort = setup3AtrSort === "desc" ? "asc" : "desc";
+  expandedSetupSymbol = null;
+  setupToggleToken += 1;
+  renderSetupRank(false);
 }
 
 function renderSetup2Rank(openInlineChart = true) {
@@ -1898,27 +1959,54 @@ function renderSetup3Rank(openInlineChart = true) {
     return;
   }
 
-  list.innerHTML = `<div class="setup3-table">
+  const rankings = sortedSetup3Rankings();
+  const atrIndicator = setup3AtrSort === "desc" ? "↓" : setup3AtrSort === "asc" ? "↑" : "↕";
+  const windows = [
+    ["all", alphaCopy("All", "전체")],
+    ["15m", "15m"],
+    ["30m", "30m"],
+    ["1h", "1h"],
+    ["2h", "2h"]
+  ];
+  const filterBar = `<div class="setup3-filterbar">
+    <span>${alphaCopy("Created within", "발생 시간")}</span>
+    ${windows.map(([value, label]) => `<button class="${setup3TimeWindow === value ? "active" : ""}" type="button" data-setup3-window="${value}">${label}</button>`).join("")}
+  </div>`;
+  if (!rankings.length) {
+    list.innerHTML = `${filterBar}<div class="setup-empty">${alphaCopy(
+      "No 2Blocks signal matches the selected time window.",
+      "선택한 시간 조건에 맞는 2Blocks 신호가 없습니다."
+    )}</div>`;
+    qsa("[data-setup3-window]").forEach(button => {
+      button.onclick = () => updateSetup3TimeWindow(button.dataset.setup3Window);
+    });
+    return;
+  }
+
+  list.innerHTML = `${filterBar}<div class="setup3-table">
     <div class="setup3-table-head">
       <span>#</span>
       <span>${alphaCopy("Symbol", "종목")}</span>
       <span>${alphaCopy("Trigger time", "발생 시각")}</span>
       <span>${alphaCopy("Price", "가격")}</span>
       <span>${alphaCopy("Confirm move", "확인 상승")}</span>
+      <button id="setup3AtrSort" class="${setup3AtrSort ? "sorted" : ""}" type="button" aria-label="${alphaCopy("Sort by ATR", "ATR 기준 정렬")}">ATR <b>${atrIndicator}</b></button>
       <span>${alphaCopy("1H path", "1시간 흐름")}</span>
       <span>${alphaCopy("Volume", "거래대금")}</span>
     </div>
-    ${setup3Rankings.map((item, index) => {
+    ${rankings.map((item, index) => {
       const inlineChart = expandedSetupSymbol === item.symbol
         ? `<div class="setup-inline-shell" data-setup-chart-for="${item.symbol}"><div class="setup-inline-mount"></div></div>`
         : "";
       const triggerTime = new Date(item.triggerTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      const atrText = item.atr ? `${fmt(item.atr)} · ${(item.atrPercent * 100).toFixed(2)}%` : "—";
       return `<button class="setup3-row ${expandedSetupSymbol === item.symbol ? "expanded" : ""}" type="button" data-setup-symbol="${item.symbol}" aria-expanded="${expandedSetupSymbol === item.symbol}">
         <span class="setup-rank">#${index + 1}</span>
         <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
         <span class="setup3-time">${triggerTime}</span>
         <strong class="setup3-price">${fmt(item.price)}</strong>
         <span class="setup3-move">+${(item.confirmationMove * 100).toFixed(2)}%</span>
+        <span class="setup3-atr">${atrText}</span>
         <span class="setup3-chart-cell">${renderSparkline(item.sparkline)}</span>
         <strong class="setup2-volume">${compactUsd(item.quoteVolume)}</strong>
       </button>${inlineChart}`;
@@ -1930,6 +2018,10 @@ function renderSetup3Rank(openInlineChart = true) {
     inlineMount.append(chartPanel);
     if (openInlineChart) qs(".setup-inline-shell")?.classList.add("open");
   }
+  qsa("[data-setup3-window]").forEach(button => {
+    button.onclick = () => updateSetup3TimeWindow(button.dataset.setup3Window);
+  });
+  qs("#setup3AtrSort").onclick = updateSetup3AtrSort;
   qsa("[data-setup-symbol]").forEach(button => {
     button.onclick = () => toggleSetupChart(button.dataset.setupSymbol);
   });
