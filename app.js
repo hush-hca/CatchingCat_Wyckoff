@@ -2570,7 +2570,6 @@ function setView(view) {
   }
   if (view === "volatility") {
     renderVolatilityRank();
-    if (liveUniverseReady) refreshVolatilityRank();
   }
   if (view === "setup") {
     currentTimeframe = activeSetupView === "setup3" ? "5M" : "1H";
@@ -2814,7 +2813,6 @@ async function refreshLiveData() {
   liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (currentView === "archive" || currentView === "alpha") refreshAlphaRank();
-  if (currentView === "volatility") refreshVolatilityRank();
   if (currentView === "setup" && activeSetupView !== "setup3") refreshSetupRank();
   if (currentView === "liquidation") void refreshLiquidationMap({ silent: true });
 }

@@ -199,8 +199,8 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(72,229,155,.22);background:#0b1813; }
 .volatility-panel { display:none;grid-column:1/-1; }
 .volatility-list { margin-top:10px;overflow-x:auto; }
-.volatility-table { min-width:880px; }
-.volatility-table-head,.volatility-row { width:100%;display:grid;grid-template-columns:38px 72px 74px 92px 104px 82px minmax(120px,1fr) 82px;align-items:center;gap:9px;padding:0 10px; }
+.volatility-table { min-width:820px; }
+.volatility-table-head,.volatility-row { width:100%;display:grid;grid-template-columns:38px 72px 74px 92px 104px 82px 112px 66px;align-items:center;gap:7px;padding:0 10px; }
 .volatility-table-head { min-height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:#53695f;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase; }
 .volatility-row { min-height:58px;border:0;border-bottom:1px solid rgba(190,225,209,.08);background:transparent;color:var(--text);text-align:left;cursor:pointer;transition:.18s; }
 .volatility-row:hover { background:rgba(98,168,255,.045); }
@@ -639,7 +639,9 @@ html[data-theme="light"] .liq-tooltip { background:rgba(255,255,255,.96);box-sha
 html[data-theme="light"] .liq-tooltip strong { color:#c4444e; }
 html[data-theme="light"] .liq-tooltip span { color:#5f746a; }
 html[data-theme="light"] body[data-view="alpha"] .alpha-inline-mount .chart-panel,
+html[data-theme="light"] body[data-view="archive"] .alpha-inline-mount .chart-panel,
 html[data-theme="light"] body[data-view="setup"] .setup-inline-mount .chart-panel,
+html[data-theme="light"] body[data-view="volatility"] .volatility-inline-mount .chart-panel,
 html[data-theme="light"] .inline-chart-mount .chart-panel,
 html[data-theme="light"] .watch-inline-mount .chart-panel { background:#fbfdfc; }
 html[data-theme="light"] .watch-alpha-loading,
