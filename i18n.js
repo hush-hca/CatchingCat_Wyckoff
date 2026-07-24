@@ -5,6 +5,8 @@
     "Volatility Score": "변동성 점수",
     "ATR% / Daily Range": "ATR% / 일중 범위",
     "RelVol / Turnover": "RelVol / 거래대금",
+    "Top 150 by 24h turnover · RelVol weighted": "24h 거래대금 상위 150 · RelVol 가중",
+    "No volatility candidates are available yet.": "아직 표시할 변동성 후보가 없습니다.",
     "Market navigator": "시장 네비게이터",
     "Workspace": "워크스페이스",
     "Dashboard": "대시보드",

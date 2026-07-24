@@ -1254,7 +1254,6 @@ async function analyzeVolatilityAsset(asset, liquidityRank) {
   const latestFallbackQuoteVolume = latest.volume * ((latest.high + latest.low + latest.close) / 3);
   const latestQuoteVolume = Number.isFinite(latest.quoteVolume) && latest.quoteVolume > 0 ? latest.quoteVolume : latestFallbackQuoteVolume;
   const relVol = averageQuoteVolume ? latestQuoteVolume / averageQuoteVolume : 0;
-  if (relVol < 2) return null;
 
   const atrSource = history.length >= 15 ? history : candles;
   const atr = calculateAtr(atrSource, atrSource.length - 1, 14);
@@ -1277,6 +1276,7 @@ async function analyzeVolatilityAsset(asset, liquidityRank) {
     atrPercent,
     dailyRangePercent,
     relVol,
+    relVolQualified: relVol >= 2,
     scores: { atr: atrScore, range: rangeScore, relVol: relVolScore },
     total
   };
@@ -1287,8 +1287,8 @@ function renderVolatilityRank() {
   if (!list) return;
   if (!volatilityRankings.length) {
     list.innerHTML = volatilityLoading ? "" : `<div class="alpha-empty">${alphaCopy(
-      "No asset currently passes the RelVol ≥ 2.0 volatility filter.",
-      "현재 RelVol ≥ 2.0 변동성 필터를 통과한 종목이 없습니다."
+      "No volatility candidates are available yet.",
+      "아직 표시할 변동성 후보가 없습니다."
     )}</div>`;
     return;
   }
@@ -1339,13 +1339,13 @@ async function refreshVolatilityRank() {
   if (!candidates.length) {
     volatilityLoading = false;
     status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Waiting for live turnover data", "실시간 거래대금 대기 중")}</strong><small>${alphaCopy("Refresh again after Binance ticker data loads.", "Binance 티커 데이터가 로드된 뒤 다시 새로고침하세요.")}</small></div>`;
-    updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+    updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol weighted", "24h 거래대금 상위 150 · RelVol 가중");
     renderVolatilityRank();
     return;
   }
 
   status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Volatility Rank", "Volatility Rank 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
-  updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+  updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol weighted", "24h 거래대금 상위 150 · RelVol 가중");
   const results = await mapWithConcurrency(candidates, 8, asset => analyzeVolatilityAsset(asset, asset.liquidityRank), (completed, total) => {
     if (token !== volatilityRunToken) return;
     const detail = status.querySelector("small");
@@ -1360,8 +1360,8 @@ async function refreshVolatilityRank() {
     .slice(0, 80);
   volatilityLoading = false;
   status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Volatility ranking ready", "Volatility 순위 완료")}</strong><small>${alphaCopy(
-    `${volatilityRankings.length} ranked · top 150 turnover · RelVol ≥ 2.0${failed ? ` · ${failed} unavailable` : ""}`,
-    `${volatilityRankings.length}개 순위 · 거래대금 상위 150 · RelVol ≥ 2.0${failed ? ` · ${failed}개 데이터 실패` : ""}`
+    `${volatilityRankings.length} ranked · top 150 turnover · RelVol weighted${failed ? ` · ${failed} unavailable` : ""}`,
+    `${volatilityRankings.length}개 순위 · 거래대금 상위 150 · RelVol 가중${failed ? ` · ${failed}개 데이터 실패` : ""}`
   )}</small></div>`;
   updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   renderVolatilityRank();
@@ -1399,8 +1399,8 @@ function renderVolatilityRank(openInlineChart = true) {
   }
   if (!volatilityRankings.length) {
     list.innerHTML = volatilityLoading ? "" : `<div class="alpha-empty">${alphaCopy(
-      "No asset currently passes the RelVol ≥ 2.0 volatility filter.",
-      "현재 RelVol ≥ 2.0 변동성 필터를 통과한 종목이 없습니다."
+      "No volatility candidates are available yet.",
+      "아직 표시할 변동성 후보가 없습니다."
     )}</div>`;
     return;
   }
@@ -1505,13 +1505,13 @@ async function refreshVolatilityRank() {
   if (!candidates.length) {
     volatilityLoading = false;
     status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Waiting for live turnover data", "실시간 거래대금 대기 중")}</strong><small>${alphaCopy("Refresh again after Binance ticker data loads.", "Binance 티커 데이터가 로드된 뒤 다시 새로고침하세요.")}</small></div>`;
-    updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+    updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol weighted", "24h 거래대금 상위 150 · RelVol 가중");
     renderVolatilityRank();
     return;
   }
 
   status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Volatility Rank", "Volatility Rank 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
-  updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+  updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol weighted", "24h 거래대금 상위 150 · RelVol 가중");
   const results = await mapWithConcurrency(candidates, 8, asset => analyzeVolatilityAsset(asset, asset.liquidityRank), (completed, total) => {
     if (token !== volatilityRunToken) return;
     const detail = status.querySelector("small");
@@ -1526,8 +1526,8 @@ async function refreshVolatilityRank() {
   volatilityRankings = volatilityRankings.slice(0, 80);
   volatilityLoading = false;
   status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Volatility ranking ready", "Volatility 순위 완료")}</strong><small>${alphaCopy(
-    `${volatilityRankings.length} ranked · top 150 turnover · RelVol ≥ 2.0${failed ? ` · ${failed} unavailable` : ""}`,
-    `${volatilityRankings.length}개 순위 · 거래대금 상위 150 · RelVol ≥ 2.0${failed ? ` · ${failed}개 데이터 실패` : ""}`
+    `${volatilityRankings.length} ranked · top 150 turnover · RelVol weighted${failed ? ` · ${failed} unavailable` : ""}`,
+    `${volatilityRankings.length}개 순위 · 거래대금 상위 150 · RelVol 가중${failed ? ` · ${failed}개 데이터 실패` : ""}`
   )}</small></div>`;
   updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   renderVolatilityRank();
@@ -2668,7 +2668,7 @@ function indicatorGuideCopy() {
         ["Threshold", "Assets above the Settings RVOL threshold are counted as ignitions."],
         ["Volatility Score", "Composite volatility score: ATR% contributes 40 points, daily high-low range contributes 35 points, and RelVol surge contributes 25 points."],
         ["ATR% / Daily Range", "ATR% measures average true range over 14 daily candles; Daily Range measures the current 24-hour high-low expansion."],
-        ["RelVol / Turnover", "RelVol requires current daily quote volume to be at least 2.0× the previous 20-day average; Turnover keeps the scan inside the top 150 liquid assets."],
+        ["RelVol / Turnover", "RelVol rewards current daily quote volume that is at least 2.0× the previous 20-day average; Turnover keeps the scan inside the top 150 liquid assets."],
         ["Liquidity", "Liquidity rank #1 means the highest 24-hour quote turnover among the evaluated top-150 universe."]
       ]],
       ["Watchlist", [
@@ -2684,7 +2684,7 @@ function indicatorGuideCopy() {
       ["Volatility Rank", [
         ["Liquidity", "Only the top 150 assets by 24-hour quote turnover are evaluated."],
         ["ATR% / Range", "Combines 14-period daily ATR% and the 24-hour high-low range to measure volatility strength."],
-        ["RelVol", "Requires the latest daily quote volume to be at least 2.0× the previous 20-day average."]
+        ["RelVol", "Rewards the latest daily quote volume when it is at least 2.0× the previous 20-day average, but lower RelVol assets can still appear as backfill."]
       ]],
       ["Setup 1 / Setup 2", [
         ["Setup 1", "Altcoin Fakeout Short conditions. 01 Weekly-high rejection: the high must come within ±0.5% of the previous one-week high, but the close must finish below that high, at least twice. 02 Bullish volume divergence: after the failed high-test bullish candle, the next 2–3 bullish candles must average 50% or less of that prior volume. 03 Bearish confirmation: when a bearish candle appears after the failed high test, its volume must be greater than or equal to the previous 3-candle average."],
@@ -2724,7 +2724,7 @@ function openIndicatorGuide() {
       : [
         ["Volatility Score", "Composite volatility score: ATR% contributes 40 points, daily high-low range contributes 35 points, and RelVol surge contributes 25 points."],
         ["ATR% / Daily Range", "ATR% measures average true range over 14 daily candles; Daily Range measures the current 24-hour high-low expansion."],
-        ["RelVol / Turnover", "RelVol requires current daily quote volume to be at least 2.0× the previous 20-day average; Turnover keeps the scan inside the top 150 liquid assets."],
+        ["RelVol / Turnover", "RelVol rewards current daily quote volume that is at least 2.0× the previous 20-day average; Turnover keeps the scan inside the top 150 liquid assets."],
         ["Liquidity", "Liquidity rank #1 means the highest 24-hour quote turnover among the evaluated top-150 universe."]
       ];
     sections = sections.map(([title, items]) => [title, [...items, ...volatilityItems.filter(([label]) => !items.some(([existing]) => existing === label))]]);
