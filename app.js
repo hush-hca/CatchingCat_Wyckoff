@@ -19,6 +19,7 @@ const VIEW_COPY = {
   liquidation: ["Liquidation Map", "Explore live Binance Futures order book liquidity by project and price level."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
   alpha: ["Alpha Rank", "Confirmed Phase C/D structures ranked by trend clarity, VWAP precision, and volume depletion."],
+  volatility: ["Volatility Rank", "Top-liquidity crypto assets ranked by ATR%, daily range, and relative volume surge."],
   setup: ["Setup", "Predefined trading setups ranked by structural and volume confirmation."],
   guide: ["How to use", "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다."]
 };
@@ -52,6 +53,9 @@ let alphaRunToken = 0;
 let liveUniverseReady = false;
 let expandedAlphaSymbol = null;
 let alphaToggleToken = 0;
+let volatilityRankings = [];
+let volatilityLoading = false;
+let volatilityRunToken = 0;
 let setupRankings = [];
 let setupLoading = false;
 let setupRunToken = 0;
@@ -223,6 +227,10 @@ function buildQualifiedUniverse(rows) {
       phaseSource: "proximity",
       structure: "unknown",
       rangePosition,
+      quoteVolume: Number(row.quoteVolume) || 0,
+      high24h: high,
+      low24h: low,
+      dailyRangePercent: price ? (high - low) / price * 100 : 0,
       support: low,
       resistance: high
     };
@@ -1222,6 +1230,131 @@ async function refreshAlphaRank() {
   )}</small></div>`;
   updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   renderAlphaRank();
+}
+
+async function analyzeVolatilityAsset(asset, liquidityRank) {
+  const candles = await fetchPublicKlines(asset.symbol, "1d", 35);
+  const latest = candles.at(-1);
+  const history = candles.slice(0, -1);
+  const relBase = history.slice(-20);
+  const averageQuoteVolume = relBase.reduce((sum, candle) => {
+    const fallbackQuoteVolume = candle.volume * ((candle.high + candle.low + candle.close) / 3);
+    return sum + (Number.isFinite(candle.quoteVolume) && candle.quoteVolume > 0 ? candle.quoteVolume : fallbackQuoteVolume);
+  }, 0) / Math.max(relBase.length, 1);
+  const latestFallbackQuoteVolume = latest.volume * ((latest.high + latest.low + latest.close) / 3);
+  const latestQuoteVolume = Number.isFinite(latest.quoteVolume) && latest.quoteVolume > 0 ? latest.quoteVolume : latestFallbackQuoteVolume;
+  const relVol = averageQuoteVolume ? latestQuoteVolume / averageQuoteVolume : 0;
+  if (relVol < 2) return null;
+
+  const atrSource = history.length >= 15 ? history : candles;
+  const atr = calculateAtr(atrSource, atrSource.length - 1, 14);
+  const atrPercent = latest.close ? atr / latest.close * 100 : 0;
+  const dailyRangePercent = Number.isFinite(asset.dailyRangePercent) && asset.dailyRangePercent > 0
+    ? asset.dailyRangePercent
+    : latest.close ? (latest.high - latest.low) / latest.close * 100 : 0;
+  const atrScore = Math.min(atrPercent / 8, 1) * 40;
+  const rangeScore = Math.min(dailyRangePercent / 12, 1) * 35;
+  const relVolScore = Math.min(relVol / 5, 1) * 25;
+  const total = atrScore + rangeScore + relVolScore;
+  return {
+    symbol: asset.symbol,
+    name: asset.name,
+    price: asset.price,
+    change: asset.change,
+    quoteVolume: asset.quoteVolume || latestQuoteVolume,
+    liquidityRank,
+    atr,
+    atrPercent,
+    dailyRangePercent,
+    relVol,
+    scores: { atr: atrScore, range: rangeScore, relVol: relVolScore },
+    total
+  };
+}
+
+function renderVolatilityRank() {
+  const list = qs("#volatilityList");
+  if (!list) return;
+  if (!volatilityRankings.length) {
+    list.innerHTML = volatilityLoading ? "" : `<div class="alpha-empty">${alphaCopy(
+      "No asset currently passes the RelVol ≥ 2.0 volatility filter.",
+      "현재 RelVol ≥ 2.0 변동성 필터를 통과한 종목이 없습니다."
+    )}</div>`;
+    return;
+  }
+  list.innerHTML = `<div class="volatility-table">
+    <div class="volatility-table-head">
+      <span>#</span>
+      <span>${alphaCopy("Symbol", "종목")}</span>
+      <span>${alphaCopy("Score", "점수")}</span>
+      <span>ATR%</span>
+      <span>${alphaCopy("Daily range", "일중 범위")}</span>
+      <span>RelVol</span>
+      <span>${alphaCopy("24h turnover", "24h 거래대금")}</span>
+      <span>${alphaCopy("Liquidity", "유동성")}</span>
+    </div>
+    ${volatilityRankings.map((item, index) => `<button class="volatility-row" type="button" data-volatility-symbol="${item.symbol}">
+      <span class="alpha-rank">#${index + 1}</span>
+      <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
+      <span class="volatility-score"><strong>${item.total.toFixed(1)}</strong><small>/100</small></span>
+      <span class="volatility-metric"><b>${item.atrPercent.toFixed(2)}%</b><small>${item.scores.atr.toFixed(1)}/40</small></span>
+      <span class="volatility-metric"><b>${item.dailyRangePercent.toFixed(2)}%</b><small>${item.scores.range.toFixed(1)}/35</small></span>
+      <span class="volatility-metric hot"><b>${item.relVol.toFixed(2)}×</b><small>${item.scores.relVol.toFixed(1)}/25</small></span>
+      <span class="volatility-metric"><b>${compactUsd(item.quoteVolume)}</b><small>24h</small></span>
+      <span class="volatility-metric"><b>#${item.liquidityRank}</b><small>top 150</small></span>
+    </button>`).join("")}
+  </div>`;
+  qsa("[data-volatility-symbol]").forEach(button => {
+    button.onclick = () => {
+      selectAsset(button.dataset.volatilitySymbol, false);
+      setView("scanner");
+    };
+  });
+}
+
+async function refreshVolatilityRank() {
+  if (volatilityLoading) return;
+  const status = qs("#volatilityStatus");
+  const updated = qs("#volatilityUpdated");
+  const token = ++volatilityRunToken;
+  volatilityLoading = true;
+  volatilityRankings = [];
+  renderVolatilityRank();
+  const candidates = [...assets]
+    .filter(asset => Number(asset.quoteVolume) > 0)
+    .sort((left, right) => Number(right.quoteVolume) - Number(left.quoteVolume))
+    .slice(0, 150)
+    .map((asset, index) => ({ ...asset, liquidityRank: index + 1 }));
+
+  if (!candidates.length) {
+    volatilityLoading = false;
+    status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Waiting for live turnover data", "실시간 거래대금 대기 중")}</strong><small>${alphaCopy("Refresh again after Binance ticker data loads.", "Binance 티커 데이터가 로드된 뒤 다시 새로고침하세요.")}</small></div>`;
+    updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+    renderVolatilityRank();
+    return;
+  }
+
+  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Volatility Rank", "Volatility Rank 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
+  updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+  const results = await mapWithConcurrency(candidates, 8, asset => analyzeVolatilityAsset(asset, asset.liquidityRank), (completed, total) => {
+    if (token !== volatilityRunToken) return;
+    const detail = status.querySelector("small");
+    if (detail) detail.textContent = `${completed} / ${total}`;
+  });
+  if (token !== volatilityRunToken) return;
+  const failed = results.filter(result => result?.error).length;
+  volatilityRankings = results
+    .filter(Boolean)
+    .filter(result => !result.error)
+    .sort((left, right) => right.total - left.total || right.atrPercent - left.atrPercent || right.relVol - left.relVol)
+    .slice(0, 80);
+  volatilityLoading = false;
+  status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Volatility ranking ready", "Volatility 순위 완료")}</strong><small>${alphaCopy(
+    `${volatilityRankings.length} ranked · top 150 turnover · RelVol ≥ 2.0${failed ? ` · ${failed} unavailable` : ""}`,
+    `${volatilityRankings.length}개 순위 · 거래대금 상위 150 · RelVol ≥ 2.0${failed ? ` · ${failed}개 데이터 실패` : ""}`
+  )}</small></div>`;
+  updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  renderVolatilityRank();
 }
 
 function analyzeFakeoutShort(asset) {
@@ -2254,6 +2387,10 @@ function setView(view) {
     renderAlphaRank();
     if (liveUniverseReady) refreshAlphaRank();
   }
+  if (view === "volatility") {
+    renderVolatilityRank();
+    if (liveUniverseReady) refreshVolatilityRank();
+  }
   if (view === "setup") {
     currentTimeframe = activeSetupView === "setup3" ? "5M" : "1H";
     qsa(".timeframes button").forEach(button => button.classList.toggle("active", button.textContent.trim() === currentTimeframe));
@@ -2312,6 +2449,11 @@ function indicatorGuideCopy() {
           ["VWAP", "현재가가 세션 VWAP에 얼마나 정밀하게 붙어 있는지 평가합니다."],
           ["Dry-up", "참조선 근처에서 현재 거래량이 최근 평균보다 줄어드는지 봅니다."]
         ]],
+        ["Volatility Rank", [
+          ["Liquidity", "24시간 거래대금 기준 상위 150개 종목만 평가합니다."],
+          ["ATR% / Range", "14일 ATR%와 24시간 고가-저가 범위를 합산해 실제 변동성 강도를 봅니다."],
+          ["RelVol", "현재 일봉 거래대금이 직전 20일 평균 대비 2배 이상인 종목만 통과합니다."]
+        ]],
       ["Setup 1 / Setup 2", [
         ["Setup 1", "Altcoin Fakeout Short 조건입니다. 01 Weekly-high rejection: 고가가 직전 1주 고점 ±0.5% 이내에 닿지만 종가는 그 고점 아래에서 마감해야 하며, 최소 2회 발생해야 합니다. 02 Bullish volume divergence: 실패한 고점 테스트 양봉 이후 2~3개의 양봉 평균 거래량이 이전 거래량의 50% 이하로 급감해야 합니다. 03 Bearish confirmation: 이후 음봉이 나오면 그 음봉 거래량은 직전 3개 캔들 평균 이상이어야 합니다."],
         ["Setup 2", "KST 04:00~09:00 하락 시간대 조건입니다. 01 최근 완료된 7개 KST 세션을 확인합니다. 02 관측 세션의 과반이 04:00~09:00 구간에서 하락 마감해야 합니다. 03 해당 구간 평균 수익률이 0% 미만이어야 합니다."],
@@ -2354,6 +2496,11 @@ function indicatorGuideCopy() {
         ["Trend", "Checks 1H/4H 100·200 SMA alignment and 200 SMA slope clarity."],
         ["VWAP", "Measures how precisely price is converging with the session VWAP."],
         ["Dry-up", "Checks whether current volume is fading near the reference line."]
+      ]],
+      ["Volatility Rank", [
+        ["Liquidity", "Only the top 150 assets by 24-hour quote turnover are evaluated."],
+        ["ATR% / Range", "Combines 14-period daily ATR% and the 24-hour high-low range to measure volatility strength."],
+        ["RelVol", "Requires the latest daily quote volume to be at least 2.0× the previous 20-day average."]
       ]],
       ["Setup 1 / Setup 2", [
         ["Setup 1", "Altcoin Fakeout Short conditions. 01 Weekly-high rejection: the high must come within ±0.5% of the previous one-week high, but the close must finish below that high, at least twice. 02 Bullish volume divergence: after the failed high-test bullish candle, the next 2–3 bullish candles must average 50% or less of that prior volume. 03 Bearish confirmation: when a bearish candle appears after the failed high test, its volume must be greater than or equal to the previous 3-candle average."],
@@ -2463,6 +2610,7 @@ async function refreshLiveData() {
   liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (currentView === "alpha") refreshAlphaRank();
+  if (currentView === "volatility") refreshVolatilityRank();
   if (currentView === "setup" && activeSetupView !== "setup3") refreshSetupRank();
   if (currentView === "liquidation") void refreshLiquidationMap({ silent: true });
 }
@@ -2556,6 +2704,7 @@ qs("#indicatorGuideBtn").onclick = openIndicatorGuide;
 if (qs("#alphaRankBtn")) qs("#alphaRankBtn").onclick = () => setView("alpha");
 qs("#refreshVolumeFireBtn").onclick = refreshVolumeFire;
 qs("#refreshAlphaBtn").onclick = () => refreshAlphaRank();
+qs("#refreshVolatilityBtn").onclick = () => refreshVolatilityRank();
 qs("#refreshSetupBtn").onclick = () => refreshSetupRank();
 qs("#reviewRulesBtn").onclick = () => showToast("Trading rules", "Stops are structural. Entries require volume. No exceptions.", "♢");
 qs("#liqSymbolSearch").onchange = event => setLiquidationSymbolFromSearch(event.target.value);

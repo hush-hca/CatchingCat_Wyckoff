@@ -197,6 +197,20 @@ tbody tr:hover, tbody tr.selected { background:rgba(72,229,155,.045); }
 .alpha-inline-shell.open { max-height:520px;opacity:1;transform:translateY(0);border-bottom-color:rgba(72,229,155,.18); }
 .alpha-inline-mount { padding:10px 12px 14px; }
 body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(72,229,155,.22);background:#0b1813; }
+.volatility-panel { display:none;grid-column:1/-1; }
+.volatility-list { margin-top:10px;overflow-x:auto; }
+.volatility-table { min-width:880px; }
+.volatility-table-head,.volatility-row { width:100%;display:grid;grid-template-columns:38px 72px 74px 92px 104px 82px minmax(120px,1fr) 82px;align-items:center;gap:9px;padding:0 10px; }
+.volatility-table-head { min-height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:#53695f;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase; }
+.volatility-row { min-height:58px;border:0;border-bottom:1px solid rgba(190,225,209,.08);background:transparent;color:var(--text);text-align:left;cursor:pointer;transition:.18s; }
+.volatility-row:hover { background:rgba(98,168,255,.045); }
+.volatility-score { width:54px;height:42px;border:2px solid rgba(98,168,255,.35);border-radius:12px;background:rgba(98,168,255,.08);display:grid;place-items:center;align-content:center; }
+.volatility-score strong { color:var(--blue);font:700 14px "DM Mono"; }
+.volatility-score small { color:#6c8278;font-size:10px; }
+.volatility-metric b,.volatility-metric small { display:block;font-size:10px; }
+.volatility-metric b { color:var(--text);font-family:"DM Mono"; }
+.volatility-metric small { color:var(--muted);margin-top:3px; }
+.volatility-metric.hot b { color:var(--orange); }
 .setup-head { align-items:flex-start; }
 .setup-head h2 { margin-bottom:5px; }
 .setup-head p { max-width:720px;line-height:1.55;margin:0; }
@@ -296,16 +310,20 @@ body[data-view="volume"] .summary-grid,
 body[data-view="scanner"] .summary-grid,
 body[data-view="watchlist"] .summary-grid,
 body[data-view="alpha"] .summary-grid,
+body[data-view="volatility"] .summary-grid,
 body[data-view="setup"] .summary-grid,
 body[data-view="liquidation"] .summary-grid { display:none; }
 body[data-view="volume"] .dashboard-grid,
 body[data-view="watchlist"] .dashboard-grid,
 body[data-view="alpha"] .dashboard-grid,
+body[data-view="volatility"] .dashboard-grid,
 body[data-view="setup"] .dashboard-grid,
 body[data-view="liquidation"] .dashboard-grid { grid-template-columns:1fr; }
 body[data-view="volume"] .opportunities,
 body[data-view="volume"] .chart-panel,
 body[data-view="volume"] .discipline-panel,
+body[data-view="volume"] .alpha-panel,
+body[data-view="volume"] .volatility-panel,
 body[data-view="volume"] .setup-panel { display:none; }
 body[data-view="volume"] .fire-panel { display:block;grid-column:1/-1;min-height:430px; }
 body[data-view="volume"] .fire-list { gap:16px;margin-top:24px; }
@@ -313,6 +331,8 @@ body[data-view="volume"] .fire-row { grid-template-columns:70px 1fr 50px;font-si
 body[data-view="volume"] .fire-bar { height:11px; }
 body[data-view="scanner"] .fire-panel,
 body[data-view="scanner"] .discipline-panel,
+body[data-view="scanner"] .alpha-panel,
+body[data-view="scanner"] .volatility-panel,
 body[data-view="scanner"] .setup-panel { display:none; }
 body[data-view="scanner"] .opportunities { grid-column:1/-1; }
 body[data-view="scanner"] .dashboard-grid > .chart-panel { display:none; }
@@ -352,6 +372,8 @@ body[data-view="scanner"] #scanAllBtn { display:none; }
 body[data-view="watchlist"] .fire-panel,
 body[data-view="watchlist"] .chart-panel,
 body[data-view="watchlist"] .discipline-panel,
+body[data-view="watchlist"] .alpha-panel,
+body[data-view="watchlist"] .volatility-panel,
 body[data-view="watchlist"] .setup-panel { display:none; }
 body[data-view="watchlist"] .opportunities { display:block;grid-column:1/-1;min-height:430px; }
 body[data-view="watchlist"] .watch-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(98,168,255,.22);background:#0b1813; }
@@ -362,19 +384,31 @@ body[data-view="setup"] .opportunities,
 body[data-view="setup"] .fire-panel,
 body[data-view="setup"] .chart-panel,
 body[data-view="setup"] .discipline-panel,
-body[data-view="setup"] .alpha-panel { display:none; }
+body[data-view="setup"] .alpha-panel,
+body[data-view="setup"] .volatility-panel { display:none; }
 body[data-view="setup"] .setup-panel { display:block; }
 body[data-view="alpha"] .opportunities,
 body[data-view="alpha"] .fire-panel,
 body[data-view="alpha"] .chart-panel,
 body[data-view="alpha"] .discipline-panel,
-body[data-view="alpha"] .setup-panel { display:none; }
+body[data-view="alpha"] .setup-panel,
+body[data-view="alpha"] .volatility-panel { display:none; }
 body[data-view="alpha"] .alpha-panel { display:block; }
+body[data-view="volatility"] .opportunities,
+body[data-view="volatility"] .fire-panel,
+body[data-view="volatility"] .chart-panel,
+body[data-view="volatility"] .discipline-panel,
+body[data-view="volatility"] .alpha-panel,
+body[data-view="volatility"] .setup-panel,
+body[data-view="volatility"] .liquidation-panel,
+body[data-view="volatility"] .guide-panel { display:none; }
+body[data-view="volatility"] .volatility-panel { display:block; }
 body[data-view="liquidation"] .opportunities,
 body[data-view="liquidation"] .fire-panel,
 body[data-view="liquidation"] .chart-panel,
 body[data-view="liquidation"] .discipline-panel,
 body[data-view="liquidation"] .alpha-panel,
+body[data-view="liquidation"] .volatility-panel,
 body[data-view="liquidation"] .setup-panel,
 body[data-view="liquidation"] .guide-panel { display:none; }
 body[data-view="liquidation"] .liquidation-panel { display:block; }
@@ -436,7 +470,10 @@ body[data-view="guide"] .opportunities,
 body[data-view="guide"] .fire-panel,
 body[data-view="guide"] .chart-panel,
 body[data-view="guide"] .discipline-panel,
-body[data-view="guide"] .setup-panel { display:none; }
+body[data-view="guide"] .setup-panel,
+body[data-view="guide"] .alpha-panel,
+body[data-view="guide"] .volatility-panel,
+body[data-view="guide"] .liquidation-panel { display:none; }
 body[data-view="guide"] .guide-panel { display:block; }
 
 @media(max-width:980px){.guide-steps{grid-template-columns:1fr 1fr}.routine-flow{display:grid;grid-template-columns:1fr 1fr}.routine-flow>i{display:none}.guide-two-column{grid-template-columns:1fr}.guide-footer-grid{grid-template-columns:1fr}}

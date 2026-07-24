@@ -13,7 +13,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=setup3-bearish-2blocks-1" />
+    <link rel="stylesheet" href="styles.css?v=volatility-rank-1" />
   </head>
   <body>
     <div class="noise"></div>
@@ -34,6 +34,7 @@
         <button class="nav-item" data-view="watchlist"><span>◇</span> Watchlist <em id="watchCount">3</em></button>
         <p>Setup</p>
         <button class="nav-item" data-view="alpha"><span>α</span> Alpha Rank</button>
+        <button class="nav-item" data-view="volatility"><span>↯</span> Volatility Rank</button>
         <button class="nav-item" data-view="setup" data-setup-nav="setup1"><span>⌁</span> Setup 1</button>
         <button class="nav-item" data-view="setup" data-setup-nav="setup2"><span>⌁</span> Setup 2</button>
         <button class="nav-item" data-view="setup" data-setup-nav="setup3"><span>▣</span> 2Blocks</button>
@@ -203,6 +204,31 @@
             <div><strong>Preparing Alpha Rank</strong><small>200-candle Phase C Spring and Phase D breakout structures are eligible.</small></div>
           </div>
           <div class="alpha-list" id="alphaList"></div>
+        </article>
+
+        <article class="panel volatility-panel" id="volatilityPanel">
+          <div class="panel-head alpha-head">
+            <div>
+              <span class="eyebrow">COMPOSITE VOLATILITY RADAR</span>
+              <h2>Volatility Rank</h2>
+              <p class="muted">Ranks top-liquidity crypto assets by ATR%, daily high-low range, and relative volume surge.</p>
+            </div>
+            <div class="alpha-actions">
+              <span class="live-badge"><i></i> LIVE</span>
+              <button type="button" id="refreshVolatilityBtn">Refresh volatility</button>
+            </div>
+          </div>
+          <div class="alpha-score-key volatility-score-key">
+            <span><b>40</b> ATR%</span>
+            <span><b>35</b> Daily range</span>
+            <span><b>25</b> RelVol surge</span>
+            <small id="volatilityUpdated">Top 150 by 24h turnover · RelVol ≥ 2.0</small>
+          </div>
+          <div class="alpha-status" id="volatilityStatus">
+            <span class="pulse"></span>
+            <div><strong>Preparing Volatility Rank</strong><small>Waiting for live Binance turnover and daily candle data.</small></div>
+          </div>
+          <div class="volatility-list" id="volatilityList"></div>
         </article>
 
         <article class="panel setup-panel" id="setupPanel">
@@ -385,8 +411,8 @@
       </form>
     </dialog>
 
-    <script src="i18n.js?v=setup3-bearish-2blocks-1"></script>
+    <script src="i18n.js?v=volatility-rank-1"></script>
     <script src="market-universe-filter.js"></script>
-    <script src="app.js?v=setup3-bearish-2blocks-1"></script>
+    <script src="app.js?v=volatility-rank-1"></script>
   </body>
 </html>
