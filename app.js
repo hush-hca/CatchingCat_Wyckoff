@@ -63,6 +63,7 @@ let setup3Rankings = [];
 let setup2VolumeSort = "desc";
 let setup3TimeWindow = "all";
 let setup3AtrSort = null;
+let setup3DirectionFilter = { bullish: true, bearish: true };
 let liquidationSymbol = "BTC";
 let liquidationTimeframe = "12h";
 let liquidationRange = { start: 0, end: 100 };
@@ -1789,10 +1790,16 @@ async function analyze2BlocksAsset(asset) {
     const orderBlock = completed[index];
     const confirmation = completed[index + 1];
     const previousBearish = previous.close < previous.open;
+    const previousBullish = previous.close > previous.open;
     const orderBlockBullish = orderBlock.close > orderBlock.open;
+    const orderBlockBearish = orderBlock.close < orderBlock.open;
     const confirmationBullish = confirmation.close > confirmation.open;
-    if (!previousBearish || !orderBlockBullish || !confirmationBullish) continue;
+    const confirmationBearish = confirmation.close < confirmation.open;
+    const bullishSignal = previousBearish && orderBlockBullish && confirmationBullish;
+    const bearishSignal = previousBullish && orderBlockBearish && confirmationBearish;
+    if (!bullishSignal && !bearishSignal) continue;
     if (!candleBodyEngulfed(previous, orderBlock)) continue;
+    const direction = bullishSignal ? "bullish" : "bearish";
     const bodyExpansion = Math.abs(orderBlock.close - orderBlock.open) / Math.max(Math.abs(previous.open - previous.close), previous.close * 0.0001);
     const confirmationMove = orderBlock.close ? confirmation.close / orderBlock.close - 1 : 0;
     const atr = calculateAtr(completed, index + 1);
@@ -1810,6 +1817,7 @@ async function analyze2BlocksAsset(asset) {
       phase: asset.phase,
       structure: asset.structure,
       triggerTime: confirmation.time,
+      direction,
       price: confirmation.close,
       orderBlockOpen: orderBlock.open,
       orderBlockClose: orderBlock.close,
@@ -1824,7 +1832,7 @@ async function analyze2BlocksAsset(asset) {
         : completedHourly.slice(-24).map(candle => candle.close)
     });
   }
-  return signals.slice(-3);
+  return signals.slice(-4);
 }
 
 function sortedSetup2Rankings() {
@@ -1865,6 +1873,7 @@ function sortedSetup3Rankings() {
   const cutoff = Date.now() - setup3WindowMs();
   const filtered = setup3Rankings
     .filter(item => setup3TimeWindow === "all" || item.triggerTime >= cutoff)
+    .filter(item => Boolean(setup3DirectionFilter[item.direction || "bullish"]))
     .sort((left, right) => right.triggerTime - left.triggerTime);
   if (!setup3AtrSort) return filtered;
   return filtered
@@ -1880,6 +1889,14 @@ function sortedSetup3Rankings() {
 
 function updateSetup3TimeWindow(value) {
   setup3TimeWindow = value || "all";
+  expandedSetupSymbol = null;
+  setupToggleToken += 1;
+  renderSetupRank(false);
+}
+
+function updateSetup3Direction(direction, checked) {
+  if (!["bullish", "bearish"].includes(direction)) return;
+  setup3DirectionFilter = { ...setup3DirectionFilter, [direction]: checked };
   expandedSetupSymbol = null;
   setupToggleToken += 1;
   renderSetupRank(false);
@@ -1953,8 +1970,8 @@ function renderSetup3Rank(openInlineChart = true) {
   if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) chartAnchor.after(chartPanel);
   if (!setup3Rankings.length) {
     list.innerHTML = setupLoading ? "" : `<div class="setup-empty">${alphaCopy(
-      "No 2Blocks bullish reversal has been confirmed on the 5m timeframe yet.",
-      "아직 5분봉에서 확인된 2Blocks 상승 반전 신호가 없습니다."
+      "No 2Blocks signal has been confirmed on the 5m timeframe yet.",
+      "아직 5분봉에서 확인된 2Blocks 신호가 없습니다."
     )}</div>`;
     return;
   }
@@ -1971,6 +1988,8 @@ function renderSetup3Rank(openInlineChart = true) {
   const filterBar = `<div class="setup3-filterbar">
     <span>${alphaCopy("Created within", "발생 시간")}</span>
     ${windows.map(([value, label]) => `<button class="${setup3TimeWindow === value ? "active" : ""}" type="button" data-setup3-window="${value}">${label}</button>`).join("")}
+    <label><input type="checkbox" data-setup3-direction="bullish" ${setup3DirectionFilter.bullish ? "checked" : ""}/> ${alphaCopy("Bullish", "상승")}</label>
+    <label><input type="checkbox" data-setup3-direction="bearish" ${setup3DirectionFilter.bearish ? "checked" : ""}/> ${alphaCopy("Bearish", "하락")}</label>
   </div>`;
   if (!rankings.length) {
     list.innerHTML = `${filterBar}<div class="setup-empty">${alphaCopy(
@@ -1980,6 +1999,9 @@ function renderSetup3Rank(openInlineChart = true) {
     qsa("[data-setup3-window]").forEach(button => {
       button.onclick = () => updateSetup3TimeWindow(button.dataset.setup3Window);
     });
+    qsa("[data-setup3-direction]").forEach(input => {
+      input.onchange = () => updateSetup3Direction(input.dataset.setup3Direction, input.checked);
+    });
     return;
   }
 
@@ -1987,9 +2009,10 @@ function renderSetup3Rank(openInlineChart = true) {
     <div class="setup3-table-head">
       <span>#</span>
       <span>${alphaCopy("Symbol", "종목")}</span>
+      <span>${alphaCopy("Direction", "방향")}</span>
       <span>${alphaCopy("Trigger time", "발생 시각")}</span>
       <span>${alphaCopy("Price", "가격")}</span>
-      <span>${alphaCopy("Confirm move", "확인 상승")}</span>
+      <span>${alphaCopy("Confirm move", "확인 변동")}</span>
       <button id="setup3AtrSort" class="${setup3AtrSort ? "sorted" : ""}" type="button" aria-label="${alphaCopy("Sort by ATR", "ATR 기준 정렬")}">ATR <b>${atrIndicator}</b></button>
       <span>${alphaCopy("1H path", "1시간 흐름")}</span>
       <span>${alphaCopy("Volume", "거래대금")}</span>
@@ -2000,12 +2023,15 @@ function renderSetup3Rank(openInlineChart = true) {
         : "";
       const triggerTime = new Date(item.triggerTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       const atrText = item.atr ? `${fmt(item.atr)} · ${(item.atrPercent * 100).toFixed(2)}%` : "—";
+      const direction = item.direction === "bearish" ? "bearish" : "bullish";
+      const movePrefix = item.confirmationMove > 0 ? "+" : "";
       return `<button class="setup3-row ${expandedSetupSymbol === item.symbol ? "expanded" : ""}" type="button" data-setup-symbol="${item.symbol}" aria-expanded="${expandedSetupSymbol === item.symbol}">
         <span class="setup-rank">#${index + 1}</span>
         <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
+        <span class="setup3-direction ${direction}">${direction === "bullish" ? alphaCopy("Bullish", "상승") : alphaCopy("Bearish", "하락")}</span>
         <span class="setup3-time">${triggerTime}</span>
         <strong class="setup3-price">${fmt(item.price)}</strong>
-        <span class="setup3-move">+${(item.confirmationMove * 100).toFixed(2)}%</span>
+        <span class="setup3-move ${direction}">${movePrefix}${(item.confirmationMove * 100).toFixed(2)}%</span>
         <span class="setup3-atr">${atrText}</span>
         <span class="setup3-chart-cell">${renderSparkline(item.sparkline)}</span>
         <strong class="setup2-volume">${compactUsd(item.quoteVolume)}</strong>
@@ -2020,6 +2046,9 @@ function renderSetup3Rank(openInlineChart = true) {
   }
   qsa("[data-setup3-window]").forEach(button => {
     button.onclick = () => updateSetup3TimeWindow(button.dataset.setup3Window);
+  });
+  qsa("[data-setup3-direction]").forEach(input => {
+    input.onchange = () => updateSetup3Direction(input.dataset.setup3Direction, input.checked);
   });
   qs("#setup3AtrSort").onclick = updateSetup3AtrSort;
   qsa("[data-setup-symbol]").forEach(button => {
@@ -2122,7 +2151,7 @@ async function refreshSetupRank() {
     ? `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 1", "Setup 1 분석 중")}</strong><small>${alphaCopy("Checking 1H 200-candle weekly-high and volume conditions.", "1H 200캔들의 주간 고점 및 거래량 조건을 확인합니다.")}</small></div>`
     : setupView === "setup2"
       ? `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Setup 2", "Setup 2 분석 중")}</strong><small>${alphaCopy("Comparing the latest seven completed 04:00–09:00 KST sessions.", "최근 완료된 KST 04:00–09:00 세션 7개를 비교합니다.")}</small></div>`
-      : `<span class="pulse"></span><div><strong>${alphaCopy("Scanning 2Blocks", "2Blocks 스캔 중")}</strong><small>${alphaCopy("Checking 5m bullish order block engulfing signals at candle close.", "5분봉 마감 기준 상승 Order Block 장악 신호를 확인합니다.")}</small></div>`;
+      : `<span class="pulse"></span><div><strong>${alphaCopy("Scanning 2Blocks", "2Blocks 스캔 중")}</strong><small>${alphaCopy("Checking 5m bullish and bearish order block engulfing signals at candle close.", "5분봉 마감 기준 상승/하락 Order Block 장악 신호를 확인합니다.")}</small></div>`;
   if (setupView !== "setup3" && structureAnalysisPromise) await structureAnalysisPromise;
   if (token !== setupRunToken || setupView !== activeSetupView) return;
 
@@ -2144,6 +2173,8 @@ async function refreshSetupRank() {
       .slice(0, 80);
   }
   setupLoading = false;
+  const setup3BullishCount = setup3Rankings.filter(item => item.direction !== "bearish").length;
+  const setup3BearishCount = setup3Rankings.filter(item => item.direction === "bearish").length;
   status.innerHTML = setupView === "setup1"
     ? `<span class="status-dot"></span><div><strong>${alphaCopy("Setup 1 ranking ready", "Setup 1 순위 완료")}</strong><small>${alphaCopy(
       `${setupRankings.length} assets meet every condition`,
@@ -2155,8 +2186,8 @@ async function refreshSetupRank() {
       `${setup2Rankings.length}개 스캐너 종목에서 과반 하락 패턴 확인`
     )}</small></div>`
       : `<span class="status-dot"></span><div><strong>${alphaCopy("2Blocks feed ready", "2Blocks 피드 준비 완료")}</strong><small>${alphaCopy(
-        `${setup3Rankings.length} bullish 5m reversals confirmed`,
-        `${setup3Rankings.length}개 5분봉 상승 반전 신호 확인`
+        `${setup3BullishCount} bullish · ${setup3BearishCount} bearish 5m signals confirmed`,
+        `상승 ${setup3BullishCount}개 · 하락 ${setup3BearishCount}개 5분봉 신호 확인`
       )}</small></div>`;
   renderSetupRank();
 }
@@ -2284,7 +2315,7 @@ function indicatorGuideCopy() {
       ["Setup 1 / Setup 2", [
         ["Setup 1", "Altcoin Fakeout Short 조건입니다. 01 Weekly-high rejection: 고가가 직전 1주 고점 ±0.5% 이내에 닿지만 종가는 그 고점 아래에서 마감해야 하며, 최소 2회 발생해야 합니다. 02 Bullish volume divergence: 실패한 고점 테스트 양봉 이후 2~3개의 양봉 평균 거래량이 이전 거래량의 50% 이하로 급감해야 합니다. 03 Bearish confirmation: 이후 음봉이 나오면 그 음봉 거래량은 직전 3개 캔들 평균 이상이어야 합니다."],
         ["Setup 2", "KST 04:00~09:00 하락 시간대 조건입니다. 01 최근 완료된 7개 KST 세션을 확인합니다. 02 관측 세션의 과반이 04:00~09:00 구간에서 하락 마감해야 합니다. 03 해당 구간 평균 수익률이 0% 미만이어야 합니다."],
-        ["2Blocks", "5분봉 bullish reversal 조건입니다. 01 직전 캔들은 음봉이어야 합니다. 02 다음 녹색 Bullish Order Block 캔들이 직전 음봉의 몸통을 완전히 감싸야 합니다. 03 바로 다음 5분봉도 양봉으로 마감하면 신호가 확정되며, 가장 최근 발생 신호가 맨 위에 표시됩니다."]
+        ["2Blocks", "5분봉 bullish/bearish 2Blocks 조건입니다. Bullish: 직전 음봉 → 다음 양봉 Order Block이 직전 음봉 몸통을 완전히 장악 → 바로 다음 캔들도 양봉 마감. Bearish: 직전 양봉 → 다음 음봉 Order Block이 직전 양봉 몸통을 완전히 장악 → 바로 다음 캔들도 음봉 마감."]
         ]]
       ]
     };
@@ -2327,7 +2358,7 @@ function indicatorGuideCopy() {
       ["Setup 1 / Setup 2", [
         ["Setup 1", "Altcoin Fakeout Short conditions. 01 Weekly-high rejection: the high must come within ±0.5% of the previous one-week high, but the close must finish below that high, at least twice. 02 Bullish volume divergence: after the failed high-test bullish candle, the next 2–3 bullish candles must average 50% or less of that prior volume. 03 Bearish confirmation: when a bearish candle appears after the failed high test, its volume must be greater than or equal to the previous 3-candle average."],
         ["Setup 2", "KST 04:00–09:00 decline-window conditions. 01 Use the latest seven completed KST sessions. 02 More than half of observed sessions must close lower during 04:00–09:00. 03 The average 04:00–09:00 return must remain below 0%."],
-        ["2Blocks", "5m bullish reversal conditions. 01 The previous candle must be bearish. 02 The next green Bullish Order Block candle must fully engulf the previous red candle body. 03 The immediate next 5m candle must also close green; once confirmed, newest signals are listed first."]
+        ["2Blocks", "5m bullish/bearish 2Blocks conditions. Bullish: previous candle bearish → next bullish order-block body fully engulfs it → immediate next candle also closes bullish. Bearish: previous candle bullish → next bearish order-block body fully engulfs it → immediate next candle also closes bearish."]
       ]]
     ]
   };

@@ -226,16 +226,19 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .setup3-filterbar { display:flex;align-items:center;gap:7px;margin:6px 0 13px;flex-wrap:wrap;color:var(--muted);font-size:10px;font-weight:700; }
 .setup3-filterbar button { border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--muted);font:700 10px Manrope;padding:5px 9px;cursor:pointer; }
 .setup3-filterbar button.active { border-color:rgba(72,229,155,.35);background:var(--mint-soft);color:var(--mint); }
-.setup3-table { min-width:860px; }
-.setup3-table-head,.setup3-row { width:100%;display:grid;grid-template-columns:42px 76px 104px 105px 105px 98px minmax(120px,1fr) 62px;align-items:center;gap:9px;padding:0 9px; }
+.setup3-filterbar label { display:flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:999px;padding:5px 9px;cursor:pointer; }
+.setup3-filterbar input { accent-color:var(--mint); }
+.setup3-table { min-width:930px; }
+.setup3-table-head,.setup3-row { width:100%;display:grid;grid-template-columns:42px 76px 78px 104px 105px 105px 98px minmax(120px,1fr) 62px;align-items:center;gap:9px;padding:0 9px; }
 .setup3-table-head { min-height:36px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);color:#53695f;font-size:10px;font-weight:700;letter-spacing:.7px;text-transform:uppercase; }
 .setup3-table-head button { border:0;background:transparent;color:inherit;text-align:left;font:inherit;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;padding:0; }
 .setup3-table-head button.sorted { color:var(--mint); }
 .setup3-row { min-height:58px;border:0;border-bottom:1px solid rgba(190,225,209,.08);background:transparent;color:var(--text);text-align:left;cursor:pointer; }
 .setup3-row:hover,.setup3-row.expanded { background:rgba(72,229,155,.045); }
 .setup3-row .setup-phase { color:var(--mint); }
-.setup3-price,.setup3-move,.setup3-time,.setup3-atr { font:600 10px "DM Mono"; }
-.setup3-move { color:var(--mint); }
+.setup3-price,.setup3-move,.setup3-time,.setup3-atr,.setup3-direction { font:600 10px "DM Mono"; }
+.setup3-move,.setup3-direction.bullish { color:var(--mint); }
+.setup3-move.bearish,.setup3-direction.bearish { color:var(--danger); }
 .setup3-chart-cell { display:flex;align-items:center;min-width:120px; }
 .setup3-sparkline { width:100%;height:34px; }
 .setup3-sparkline path { fill:none;stroke:var(--mint);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(72,229,155,.25)); }
