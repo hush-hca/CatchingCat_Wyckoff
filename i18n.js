@@ -1,5 +1,10 @@
 (() => {
   const ko = {
+    "Archive": "아카이브",
+    "Saved analytical screens and priority models for review.": "검토용 분석 화면과 우선순위 모델을 모아둔 공간입니다.",
+    "Volatility Score": "변동성 점수",
+    "ATR% / Daily Range": "ATR% / 일중 범위",
+    "RelVol / Turnover": "RelVol / 거래대금",
     "Market navigator": "시장 네비게이터",
     "Workspace": "워크스페이스",
     "Dashboard": "대시보드",

@@ -211,6 +211,13 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .volatility-metric b { color:var(--text);font-family:"DM Mono"; }
 .volatility-metric small { color:var(--muted);margin-top:3px; }
 .volatility-metric.hot b { color:var(--orange); }
+.volatility-table-head button { border:0;background:transparent;color:inherit;font:inherit;text-align:left;text-transform:uppercase;letter-spacing:.7px;cursor:pointer;padding:0; }
+.volatility-table-head button:hover,.volatility-table-head button.sorted { color:var(--blue); }
+.volatility-row.expanded { background:rgba(98,168,255,.065);border-bottom-color:rgba(98,168,255,.18); }
+.volatility-inline-shell { min-width:880px;max-height:0;opacity:0;transform:translateY(-6px);overflow:hidden;border-bottom:1px solid transparent;transition:max-height .22s ease,opacity .18s ease,transform .22s ease,border-color .22s ease; }
+.volatility-inline-shell.open { max-height:520px;opacity:1;transform:translateY(0);border-bottom-color:rgba(98,168,255,.18); }
+.volatility-inline-mount { padding:10px 12px 14px; }
+.volatility-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(98,168,255,.22);background:#0b1813; }
 .setup-head { align-items:flex-start; }
 .setup-head h2 { margin-bottom:5px; }
 .setup-head p { max-width:720px;line-height:1.55;margin:0; }
@@ -309,12 +316,14 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 body[data-view="volume"] .summary-grid,
 body[data-view="scanner"] .summary-grid,
 body[data-view="watchlist"] .summary-grid,
+body[data-view="archive"] .summary-grid,
 body[data-view="alpha"] .summary-grid,
 body[data-view="volatility"] .summary-grid,
 body[data-view="setup"] .summary-grid,
 body[data-view="liquidation"] .summary-grid { display:none; }
 body[data-view="volume"] .dashboard-grid,
 body[data-view="watchlist"] .dashboard-grid,
+body[data-view="archive"] .dashboard-grid,
 body[data-view="alpha"] .dashboard-grid,
 body[data-view="volatility"] .dashboard-grid,
 body[data-view="setup"] .dashboard-grid,
@@ -323,9 +332,10 @@ body[data-view="volume"] .opportunities,
 body[data-view="volume"] .chart-panel,
 body[data-view="volume"] .discipline-panel,
 body[data-view="volume"] .alpha-panel,
-body[data-view="volume"] .volatility-panel,
 body[data-view="volume"] .setup-panel { display:none; }
 body[data-view="volume"] .fire-panel { display:block;grid-column:1/-1;min-height:430px; }
+body[data-view="volume"] .volatility-panel { display:block;grid-column:1/-1; }
+body[data-view="volume"] .volatility-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(98,168,255,.22);background:#0b1813; }
 body[data-view="volume"] .fire-list { gap:16px;margin-top:24px; }
 body[data-view="volume"] .fire-row { grid-template-columns:70px 1fr 50px;font-size:10px; }
 body[data-view="volume"] .fire-bar { height:11px; }
@@ -387,12 +397,19 @@ body[data-view="setup"] .discipline-panel,
 body[data-view="setup"] .alpha-panel,
 body[data-view="setup"] .volatility-panel { display:none; }
 body[data-view="setup"] .setup-panel { display:block; }
+body[data-view="archive"] .opportunities,
+body[data-view="archive"] .fire-panel,
+body[data-view="archive"] .chart-panel,
+body[data-view="archive"] .discipline-panel,
+body[data-view="archive"] .setup-panel,
+body[data-view="archive"] .volatility-panel,
 body[data-view="alpha"] .opportunities,
 body[data-view="alpha"] .fire-panel,
 body[data-view="alpha"] .chart-panel,
 body[data-view="alpha"] .discipline-panel,
 body[data-view="alpha"] .setup-panel,
 body[data-view="alpha"] .volatility-panel { display:none; }
+body[data-view="archive"] .alpha-panel,
 body[data-view="alpha"] .alpha-panel { display:block; }
 body[data-view="volatility"] .opportunities,
 body[data-view="volatility"] .fire-panel,

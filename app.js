@@ -18,11 +18,18 @@ const VIEW_COPY = {
   scanner: ["Wyckoff Scanner", "Compare qualified structures, then inspect the selected setup below."],
   liquidation: ["Liquidation Map", "Explore live Binance Futures order book liquidity by project and price level."],
   watchlist: ["Your Watchlist", "Only the assets you chose to monitor—no scanning noise."],
-  alpha: ["Alpha Rank", "Confirmed Phase C/D structures ranked by trend clarity, VWAP precision, and volume depletion."],
+  archive: ["Archive", "Saved analytical screens and priority models for review."],
+  alpha: ["Archive", "Saved analytical screens and priority models for review."],
   volatility: ["Volatility Rank", "Top-liquidity crypto assets ranked by ATR%, daily range, and relative volume surge."],
   setup: ["Setup", "Predefined trading setups ranked by structural and volume confirmation."],
   guide: ["How to use", "Catching Cat을 장중에 빠르고 일관되게 사용하는 방법입니다."]
 };
+
+function normalizeView(view) {
+  if (view === "alpha") return "archive";
+  if (view === "volatility") return "volume";
+  return view;
+}
 
 let assets = structuredClone(FALLBACK);
 let selected = assets[0];
@@ -30,8 +37,9 @@ let threshold = Number(localStorage.getItem("cc-threshold") || 2);
 const DOMESTIC_DOMINANCE_THRESHOLD = 40;
 let manualBlacklist = localStorage.getItem("cc-manual-blacklist") || "BTC, ETH, BNB, SOL, XRP";
 let lastUniverseFilterStats = null;
-const requestedView = location.pathname === "/how-to-use" ? "guide" : location.hash.slice(1);
-let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[localStorage.getItem("cc-view")] ? localStorage.getItem("cc-view") : "dashboard";
+const requestedView = normalizeView(location.pathname === "/how-to-use" ? "guide" : location.hash.slice(1));
+const storedView = normalizeView(localStorage.getItem("cc-view"));
+let currentView = VIEW_COPY[requestedView] ? requestedView : VIEW_COPY[storedView] ? storedView : "dashboard";
 let currentFilter = "all";
 let sortRules = [];
 let watchlist = readStorage("cc-watchlist", ["SUI", "ONDO", "ENA"]);
@@ -56,6 +64,9 @@ let alphaToggleToken = 0;
 let volatilityRankings = [];
 let volatilityLoading = false;
 let volatilityRunToken = 0;
+let volatilitySortKey = "total";
+let expandedVolatilitySymbol = null;
+let volatilityToggleToken = 0;
 let setupRankings = [];
 let setupLoading = false;
 let setupRunToken = 0;
@@ -1357,6 +1368,172 @@ async function refreshVolatilityRank() {
   renderVolatilityRank();
 }
 
+function volatilitySortValue(item, key) {
+  if (key === "atr") return item.atrPercent;
+  if (key === "range") return item.dailyRangePercent;
+  if (key === "relVol") return item.relVol;
+  if (key === "turnover") return item.quoteVolume;
+  if (key === "liquidity") return -item.liquidityRank;
+  return item.total;
+}
+
+function applyVolatilitySort() {
+  volatilityRankings.sort((left, right) => {
+    const primary = volatilitySortValue(right, volatilitySortKey) - volatilitySortValue(left, volatilitySortKey);
+    return primary || right.total - left.total || right.atrPercent - left.atrPercent || right.relVol - left.relVol;
+  });
+}
+
+function setVolatilitySort(key) {
+  volatilitySortKey = key;
+  applyVolatilitySort();
+  renderVolatilityRank(false);
+}
+
+function renderVolatilityRank(openInlineChart = true) {
+  const list = qs("#volatilityList");
+  if (!list) return;
+  const chartPanel = qs("#selectedSetupPanel");
+  const chartAnchor = qs("#chartAnchor");
+  if (chartPanel && chartAnchor && !chartAnchor.nextElementSibling?.isSameNode(chartPanel)) {
+    chartAnchor.after(chartPanel);
+  }
+  if (!volatilityRankings.length) {
+    list.innerHTML = volatilityLoading ? "" : `<div class="alpha-empty">${alphaCopy(
+      "No asset currently passes the RelVol ≥ 2.0 volatility filter.",
+      "현재 RelVol ≥ 2.0 변동성 필터를 통과한 종목이 없습니다."
+    )}</div>`;
+    return;
+  }
+
+  const sortMark = key => volatilitySortKey === key ? " ↓" : "";
+  const headerButton = (key, label) => `<button type="button" data-volatility-sort="${key}" class="${volatilitySortKey === key ? "sorted" : ""}">${label}${sortMark(key)}</button>`;
+  list.innerHTML = `<div class="volatility-table">
+    <div class="volatility-table-head">
+      <span>#</span>
+      <span>${alphaCopy("Symbol", "종목")}</span>
+      ${headerButton("total", alphaCopy("Score", "점수"))}
+      ${headerButton("atr", "ATR%")}
+      ${headerButton("range", alphaCopy("Daily range", "일중 범위"))}
+      ${headerButton("relVol", "RelVol")}
+      ${headerButton("turnover", alphaCopy("24h turnover", "24h 거래대금"))}
+      ${headerButton("liquidity", alphaCopy("Liquidity", "유동성"))}
+    </div>
+    ${volatilityRankings.map((item, index) => {
+      const inlineChart = expandedVolatilitySymbol === item.symbol
+        ? `<div class="volatility-inline-shell" data-volatility-chart-for="${item.symbol}"><div class="volatility-inline-mount"></div></div>`
+        : "";
+      return `<button class="volatility-row ${expandedVolatilitySymbol === item.symbol ? "expanded" : ""}" type="button" data-volatility-symbol="${item.symbol}" aria-expanded="${expandedVolatilitySymbol === item.symbol}">
+        <span class="alpha-rank">#${index + 1}</span>
+        <strong class="setup-symbol">${escapeHtml(item.symbol)}</strong>
+        <span class="volatility-score"><strong>${item.total.toFixed(1)}</strong><small>/100</small></span>
+        <span class="volatility-metric"><b>${item.atrPercent.toFixed(2)}%</b><small>${item.scores.atr.toFixed(1)}/40</small></span>
+        <span class="volatility-metric"><b>${item.dailyRangePercent.toFixed(2)}%</b><small>${item.scores.range.toFixed(1)}/35</small></span>
+        <span class="volatility-metric hot"><b>${item.relVol.toFixed(2)}×</b><small>${item.scores.relVol.toFixed(1)}/25</small></span>
+        <span class="volatility-metric"><b>${compactUsd(item.quoteVolume)}</b><small>24h</small></span>
+        <span class="volatility-metric"><b>#${item.liquidityRank}</b><small>top 150</small></span>
+      </button>${inlineChart}`;
+    }).join("")}
+  </div>`;
+
+  const inlineMount = qs(".volatility-inline-mount");
+  if (inlineMount && chartPanel) {
+    inlineMount.append(chartPanel);
+    if (openInlineChart) qs(".volatility-inline-shell")?.classList.add("open");
+  }
+
+  qsa("[data-volatility-sort]").forEach(button => {
+    button.onclick = event => {
+      event.stopPropagation();
+      setVolatilitySort(button.dataset.volatilitySort);
+    };
+  });
+  qsa("[data-volatility-symbol]").forEach(button => {
+    button.onclick = () => toggleVolatilityChart(button.dataset.volatilitySymbol);
+  });
+}
+
+function toggleVolatilityChart(symbol) {
+  const scrollTop = window.scrollY;
+  const scrollLeft = window.scrollX;
+  const listScrollLeft = qs("#volatilityList")?.scrollLeft || 0;
+  const sameSymbol = expandedVolatilitySymbol === symbol;
+  const openShell = qs(".volatility-inline-shell.open");
+  const token = ++volatilityToggleToken;
+
+  const commitToggle = () => {
+    if (token !== volatilityToggleToken) return;
+    expandedVolatilitySymbol = sameSymbol ? null : symbol;
+    if (!sameSymbol) selectAsset(symbol, false);
+    renderVolatilityRank(false);
+    if (qs("#volatilityList")) qs("#volatilityList").scrollLeft = listScrollLeft;
+    restoreScrollPosition(scrollTop, scrollLeft);
+    if (!sameSymbol) {
+      requestAnimationFrame(() => {
+        if (token !== volatilityToggleToken) return;
+        qs(".volatility-inline-shell")?.classList.add("open");
+        if (qs("#volatilityList")) qs("#volatilityList").scrollLeft = listScrollLeft;
+        restoreScrollPosition(scrollTop, scrollLeft);
+      });
+    }
+  };
+
+  if (openShell) {
+    openShell.classList.remove("open");
+    restoreScrollPosition(scrollTop, scrollLeft);
+    window.setTimeout(commitToggle, 220);
+  } else {
+    commitToggle();
+  }
+}
+
+async function refreshVolatilityRank() {
+  if (volatilityLoading) return;
+  const status = qs("#volatilityStatus");
+  const updated = qs("#volatilityUpdated");
+  const token = ++volatilityRunToken;
+  expandedVolatilitySymbol = null;
+  volatilityToggleToken += 1;
+  volatilityLoading = true;
+  volatilityRankings = [];
+  renderVolatilityRank();
+  const candidates = [...assets]
+    .filter(asset => Number(asset.quoteVolume) > 0)
+    .sort((left, right) => Number(right.quoteVolume) - Number(left.quoteVolume))
+    .slice(0, 150)
+    .map((asset, index) => ({ ...asset, liquidityRank: index + 1 }));
+
+  if (!candidates.length) {
+    volatilityLoading = false;
+    status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Waiting for live turnover data", "실시간 거래대금 대기 중")}</strong><small>${alphaCopy("Refresh again after Binance ticker data loads.", "Binance 티커 데이터가 로드된 뒤 다시 새로고침하세요.")}</small></div>`;
+    updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+    renderVolatilityRank();
+    return;
+  }
+
+  status.innerHTML = `<span class="pulse"></span><div><strong>${alphaCopy("Analyzing Volatility Rank", "Volatility Rank 분석 중")}</strong><small>0 / ${candidates.length}</small></div>`;
+  updated.textContent = alphaCopy("Top 150 by 24h turnover · RelVol ≥ 2.0", "24h 거래대금 상위 150 · RelVol ≥ 2.0");
+  const results = await mapWithConcurrency(candidates, 8, asset => analyzeVolatilityAsset(asset, asset.liquidityRank), (completed, total) => {
+    if (token !== volatilityRunToken) return;
+    const detail = status.querySelector("small");
+    if (detail) detail.textContent = `${completed} / ${total}`;
+  });
+  if (token !== volatilityRunToken) return;
+  const failed = results.filter(result => result?.error).length;
+  volatilityRankings = results
+    .filter(Boolean)
+    .filter(result => !result.error);
+  applyVolatilitySort();
+  volatilityRankings = volatilityRankings.slice(0, 80);
+  volatilityLoading = false;
+  status.innerHTML = `<span class="status-dot"></span><div><strong>${alphaCopy("Volatility ranking ready", "Volatility 순위 완료")}</strong><small>${alphaCopy(
+    `${volatilityRankings.length} ranked · top 150 turnover · RelVol ≥ 2.0${failed ? ` · ${failed} unavailable` : ""}`,
+    `${volatilityRankings.length}개 순위 · 거래대금 상위 150 · RelVol ≥ 2.0${failed ? ` · ${failed}개 데이터 실패` : ""}`
+  )}</small></div>`;
+  updated.textContent = `${alphaCopy("Updated", "업데이트")} ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  renderVolatilityRank();
+}
+
 function analyzeFakeoutShort(asset) {
   if (asset.phaseSource !== "structure") return null;
   const payload = chartCache.get(`${asset.symbol}:${STRUCTURE_INTERVAL}`);
@@ -2352,15 +2529,20 @@ function setActiveSetup(view, refresh = true) {
 }
 
 function setView(view) {
+  view = normalizeView(view);
   if (!VIEW_COPY[view]) return;
   if (view !== "scanner") expandedScannerSymbol = null;
   if (view !== "watchlist") {
     expandedWatchlistSymbol = null;
     watchlistToggleToken += 1;
   }
-  if (view !== "alpha") {
+  if (view !== "archive" && view !== "alpha") {
     expandedAlphaSymbol = null;
     alphaToggleToken += 1;
+  }
+  if (view !== "volume" && view !== "volatility") {
+    expandedVolatilitySymbol = null;
+    volatilityToggleToken += 1;
   }
   if (view !== "setup") {
     expandedSetupSymbol = null;
@@ -2383,11 +2565,11 @@ function setView(view) {
   qs("#opportunityTitle").textContent = view === "watchlist" ? "Monitored assets" : view === "scanner" ? "Qualified setups" : "Priority opportunities";
   qs("#opportunityEyebrow").textContent = view === "watchlist" ? "FOCUSED UNIVERSE" : "INSTITUTIONAL FOOTPRINTS";
   renderRows();
-  if (view === "alpha") {
+  if (view === "archive" || view === "alpha") {
     renderAlphaRank();
     if (liveUniverseReady) refreshAlphaRank();
   }
-  if (view === "volatility") {
+  if (view === "volume" || view === "volatility") {
     renderVolatilityRank();
     if (liveUniverseReady) refreshVolatilityRank();
   }
@@ -2485,7 +2667,11 @@ function indicatorGuideCopy() {
       ]],
       ["Volume Fire", [
         ["RVOL bar", "Compares one-minute volume ignition strength across symbols."],
-        ["Threshold", "Assets above the Settings RVOL threshold are counted as ignitions."]
+        ["Threshold", "Assets above the Settings RVOL threshold are counted as ignitions."],
+        ["Volatility Score", "Composite volatility score: ATR% contributes 40 points, daily high-low range contributes 35 points, and RelVol surge contributes 25 points."],
+        ["ATR% / Daily Range", "ATR% measures average true range over 14 daily candles; Daily Range measures the current 24-hour high-low expansion."],
+        ["RelVol / Turnover", "RelVol requires current daily quote volume to be at least 2.0× the previous 20-day average; Turnover keeps the scan inside the top 150 liquid assets."],
+        ["Liquidity", "Liquidity rank #1 means the highest 24-hour quote turnover among the evaluated top-150 universe."]
       ]],
       ["Watchlist", [
         ["Focused universe", "Only the symbols you manually selected for closer monitoring."],
@@ -2520,12 +2706,30 @@ function openIndicatorGuide() {
     dashboard: "Dashboard",
     volume: "Volume Fire",
     scanner: "Wyckoff Scanner",
+    liquidation: "Liquidation Map",
     watchlist: "Watchlist",
+    archive: "Alpha Rank",
     alpha: "Alpha Rank",
     setup: "Setup 1 / Setup 2",
     guide: "How to use"
   };
   let sections = copy.sections.filter(([title]) => title === sectionMap[currentView]);
+  if (currentView === "volume" && sections.length) {
+    const volatilityItems = window.I18N?.language === "ko"
+      ? [
+        ["Volatility Score", "ATR% 40점, 일중 고저 범위 35점, RelVol 급증 25점을 합산한 복합 변동성 점수입니다."],
+        ["ATR% / Daily Range", "ATR%는 14개 일봉 기준 평균 진폭이고, Daily Range는 현재 24시간 고가-저가 확장률입니다."],
+        ["RelVol / Turnover", "RelVol은 현재 일봉 거래대금이 직전 20일 평균의 2배 이상인지 봅니다. Turnover는 거래대금 상위 150개 고유동성 종목만 남깁니다."],
+        ["Liquidity", "유동성 #1은 평가 대상 상위 150개 중 24시간 거래대금이 가장 큰 종목이라는 뜻입니다."]
+      ]
+      : [
+        ["Volatility Score", "Composite volatility score: ATR% contributes 40 points, daily high-low range contributes 35 points, and RelVol surge contributes 25 points."],
+        ["ATR% / Daily Range", "ATR% measures average true range over 14 daily candles; Daily Range measures the current 24-hour high-low expansion."],
+        ["RelVol / Turnover", "RelVol requires current daily quote volume to be at least 2.0× the previous 20-day average; Turnover keeps the scan inside the top 150 liquid assets."],
+        ["Liquidity", "Liquidity rank #1 means the highest 24-hour quote turnover among the evaluated top-150 universe."]
+      ];
+    sections = sections.map(([title, items]) => [title, [...items, ...volatilityItems.filter(([label]) => !items.some(([existing]) => existing === label))]]);
+  }
   if (currentView === "setup") {
     sections = sections.map(([title, items]) => [setupLabel, items.filter(([label]) => label === setupLabel)]);
   }
@@ -2609,8 +2813,8 @@ async function refreshLiveData() {
   }
   liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-  if (currentView === "alpha") refreshAlphaRank();
-  if (currentView === "volatility") refreshVolatilityRank();
+  if (currentView === "archive" || currentView === "alpha") refreshAlphaRank();
+  if (currentView === "volume" || currentView === "volatility") refreshVolatilityRank();
   if (currentView === "setup" && activeSetupView !== "setup3") refreshSetupRank();
   if (currentView === "liquidation") void refreshLiquidationMap({ silent: true });
 }
