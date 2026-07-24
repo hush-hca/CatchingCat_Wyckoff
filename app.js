@@ -27,7 +27,6 @@ const VIEW_COPY = {
 
 function normalizeView(view) {
   if (view === "alpha") return "archive";
-  if (view === "volatility") return "volume";
   return view;
 }
 
@@ -2540,7 +2539,7 @@ function setView(view) {
     expandedAlphaSymbol = null;
     alphaToggleToken += 1;
   }
-  if (view !== "volume" && view !== "volatility") {
+  if (view !== "volatility") {
     expandedVolatilitySymbol = null;
     volatilityToggleToken += 1;
   }
@@ -2569,7 +2568,7 @@ function setView(view) {
     renderAlphaRank();
     if (liveUniverseReady) refreshAlphaRank();
   }
-  if (view === "volume" || view === "volatility") {
+  if (view === "volatility") {
     renderVolatilityRank();
     if (liveUniverseReady) refreshVolatilityRank();
   }
@@ -2705,6 +2704,7 @@ function openIndicatorGuide() {
   const sectionMap = {
     dashboard: "Dashboard",
     volume: "Volume Fire",
+    volatility: "Volatility Rank",
     scanner: "Wyckoff Scanner",
     liquidation: "Liquidation Map",
     watchlist: "Watchlist",
@@ -2714,7 +2714,7 @@ function openIndicatorGuide() {
     guide: "How to use"
   };
   let sections = copy.sections.filter(([title]) => title === sectionMap[currentView]);
-  if (currentView === "volume" && sections.length) {
+  if (currentView === "volatility" && sections.length) {
     const volatilityItems = window.I18N?.language === "ko"
       ? [
         ["Volatility Score", "ATR% 40점, 일중 고저 범위 35점, RelVol 급증 25점을 합산한 복합 변동성 점수입니다."],
@@ -2814,7 +2814,7 @@ async function refreshLiveData() {
   liveUniverseReady = true;
   qs("#refreshTime").textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (currentView === "archive" || currentView === "alpha") refreshAlphaRank();
-  if (currentView === "volume" || currentView === "volatility") refreshVolatilityRank();
+  if (currentView === "volatility") refreshVolatilityRank();
   if (currentView === "setup" && activeSetupView !== "setup3") refreshSetupRank();
   if (currentView === "liquidation") void refreshLiquidationMap({ silent: true });
 }

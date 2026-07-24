@@ -218,6 +218,7 @@ body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-hei
 .volatility-inline-shell.open { max-height:520px;opacity:1;transform:translateY(0);border-bottom-color:rgba(98,168,255,.18); }
 .volatility-inline-mount { padding:10px 12px 14px; }
 .volatility-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(98,168,255,.22);background:#0b1813; }
+body[data-view="volatility"] .volatility-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(98,168,255,.22);background:#0b1813; }
 .setup-head { align-items:flex-start; }
 .setup-head h2 { margin-bottom:5px; }
 .setup-head p { max-width:720px;line-height:1.55;margin:0; }
@@ -332,10 +333,9 @@ body[data-view="volume"] .opportunities,
 body[data-view="volume"] .chart-panel,
 body[data-view="volume"] .discipline-panel,
 body[data-view="volume"] .alpha-panel,
+body[data-view="volume"] .volatility-panel,
 body[data-view="volume"] .setup-panel { display:none; }
 body[data-view="volume"] .fire-panel { display:block;grid-column:1/-1;min-height:430px; }
-body[data-view="volume"] .volatility-panel { display:block;grid-column:1/-1; }
-body[data-view="volume"] .volatility-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(98,168,255,.22);background:#0b1813; }
 body[data-view="volume"] .fire-list { gap:16px;margin-top:24px; }
 body[data-view="volume"] .fire-row { grid-template-columns:70px 1fr 50px;font-size:10px; }
 body[data-view="volume"] .fire-bar { height:11px; }
@@ -411,6 +411,8 @@ body[data-view="alpha"] .setup-panel,
 body[data-view="alpha"] .volatility-panel { display:none; }
 body[data-view="archive"] .alpha-panel,
 body[data-view="alpha"] .alpha-panel { display:block; }
+body[data-view="archive"] .alpha-inline-mount .chart-panel,
+body[data-view="alpha"] .alpha-inline-mount .chart-panel { display:block;min-height:390px;border-color:rgba(72,229,155,.22);background:#0b1813; }
 body[data-view="volatility"] .opportunities,
 body[data-view="volatility"] .fire-panel,
 body[data-view="volatility"] .chart-panel,
